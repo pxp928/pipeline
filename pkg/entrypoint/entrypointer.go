@@ -18,12 +18,19 @@ package entrypoint
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/termination"
@@ -123,7 +130,19 @@ func (e Entrypointer) Go() error {
 		ResultType: v1beta1.InternalTektonResultType,
 	})
 
-	var err error
+	ctx := context.Background()
+	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix:///run/spire/sockets/agent.sock"))
+	if err != nil {
+		return err
+	}
+	jwt, err := client.FetchJWTSVID(ctx, jwtsvid.Params{
+		Audience: "sigstore",
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Println(jwt)
+
 	if e.Timeout != nil && *e.Timeout < time.Duration(0) {
 		err = fmt.Errorf("negative timeout specified")
 	}
@@ -151,7 +170,7 @@ func (e Entrypointer) Go() error {
 	// strings.Split(..) with an empty string returns an array that contains one element, an empty string.
 	// This creates an error when trying to open the result folder as a file.
 	if len(e.Results) >= 1 && e.Results[0] != "" {
-		if err := e.readResultsFromDisk(); err != nil {
+		if err := e.readResultsFromDisk(client); err != nil {
 			logger.Fatalf("Error while handling results: %s", err)
 		}
 	}
@@ -159,7 +178,40 @@ func (e Entrypointer) Go() error {
 	return err
 }
 
-func (e Entrypointer) readResultsFromDisk() error {
+func Sign(results []v1beta1.PipelineResourceResult, client *workloadapi.Client) ([]v1beta1.PipelineResourceResult, error) {
+	xsvid, err := client.FetchX509SVID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	output := []v1beta1.PipelineResourceResult{}
+	if len(results) > 1 {
+		p := pem.EncodeToMemory(&pem.Block{
+			Bytes: xsvid.Certificates[0].Raw,
+			Type:  "CERTIFICATE",
+		})
+		output = append(output, v1beta1.PipelineResourceResult{
+			Key:        "SVID",
+			Value:      string(p),
+			ResultType: v1beta1.TaskRunResultType,
+		})
+	}
+	for _, r := range results {
+		dgst := sha256.Sum256([]byte(r.Value))
+		s, err := xsvid.PrivateKey.Sign(rand.Reader, dgst[:], crypto.SHA256)
+		if err != nil {
+			return nil, err
+		}
+		output = append(output, v1beta1.PipelineResourceResult{
+			Key:        r.Key + ".sig",
+			Value:      base64.StdEncoding.EncodeToString(s),
+			ResultType: v1beta1.TaskRunResultType,
+		})
+	}
+	return output, nil
+}
+
+func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
+
 	output := []v1beta1.PipelineResourceResult{}
 	for _, resultFile := range e.Results {
 		if resultFile == "" {
@@ -178,6 +230,11 @@ func (e Entrypointer) readResultsFromDisk() error {
 			ResultType: v1beta1.TaskRunResultType,
 		})
 	}
+	signed, err := Sign(output, client)
+	if err != nil {
+		return err
+	}
+	output = append(output, signed...)
 	// push output to termination path
 	if len(output) != 0 {
 		if err := termination.WriteMessage(e.TerminationPath, output); err != nil {

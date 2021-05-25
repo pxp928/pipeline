@@ -17,9 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"github.com/tektoncd/pipeline/pkg/entrypoint"
 	"github.com/tektoncd/pipeline/pkg/termination"
 	"knative.dev/pkg/logging"
 
@@ -81,6 +84,17 @@ func main() {
 		})
 
 	}
+	ctx := context.Background()
+	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix:///run/spire/sockets/agent.sock"))
+	if err != nil {
+		logger.Fatal(err)
+	}
+	signed, err := entrypoint.Sign(output, client)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	output = append(output, signed...)
 
 	if err := termination.WriteMessage(*terminationMessagePath, output); err != nil {
 		logger.Fatalf("Unexpected error writing message %s to %s", *terminationMessagePath, err)

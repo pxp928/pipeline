@@ -17,7 +17,16 @@ limitations under the License.
 package pod
 
 import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -151,27 +160,44 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 			if err != nil {
 				logger.Errorf("termination message could not be parsed as JSON: %v", err)
 				merr = multierror.Append(merr, err)
+				continue
+			}
+			time, err := extractStartedAtTimeFromResults(results)
+			if err != nil {
+				logger.Errorf("error setting the start time of step %q in taskrun %q: %v", s.Name, tr.Name, err)
+				merr = multierror.Append(merr, err)
+			}
+
+			if err := checkValidated(results); err != nil {
+				trs.SetCondition(&apis.Condition{
+					Type:    "VERIFIED",
+					Status:  corev1.ConditionFalse,
+					Reason:  "checked signatures",
+					Message: err.Error(),
+				})
 			} else {
-				time, err := extractStartedAtTimeFromResults(results)
-				if err != nil {
-					logger.Errorf("error setting the start time of step %q in taskrun %q: %v", s.Name, tr.Name, err)
-					merr = multierror.Append(merr, err)
-				}
-				taskResults, pipelineResourceResults, filteredResults := filterResultsAndResources(results)
-				if tr.IsSuccessful() {
-					trs.TaskRunResults = append(trs.TaskRunResults, taskResults...)
-					trs.ResourcesResult = append(trs.ResourcesResult, pipelineResourceResults...)
-				}
-				msg, err = createMessageFromResults(filteredResults)
-				if err != nil {
-					logger.Errorf("%v", err)
-					err = multierror.Append(merr, err)
-				} else {
-					s.State.Terminated.Message = msg
-				}
-				if time != nil {
-					s.State.Terminated.StartedAt = *time
-				}
+				trs.SetCondition(&apis.Condition{
+					Type:    "VERIFIED",
+					Status:  corev1.ConditionTrue,
+					Reason:  "checked signatures",
+					Message: "everything is cool",
+				})
+			}
+
+			taskResults, pipelineResourceResults, filteredResults := filterResultsAndResources(results)
+			if tr.IsSuccessful() {
+				trs.TaskRunResults = append(trs.TaskRunResults, taskResults...)
+				trs.ResourcesResult = append(trs.ResourcesResult, pipelineResourceResults...)
+			}
+			msg, err = createMessageFromResults(filteredResults)
+			if err != nil {
+				logger.Errorf("%v", err)
+				err = multierror.Append(merr, err)
+			} else {
+				s.State.Terminated.Message = msg
+			}
+			if time != nil {
+				s.State.Terminated.StartedAt = *time
 			}
 		}
 		trs.Steps = append(trs.Steps, v1beta1.StepState{
@@ -184,6 +210,68 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 
 	return merr
 
+}
+
+func checkValidated(rs []v1beta1.PipelineResourceResult) error {
+	resultMap := map[string]v1beta1.PipelineResourceResult{}
+	for _, r := range rs {
+		resultMap[r.Key] = r
+	}
+	svid, ok := resultMap["SVID"]
+	if !ok {
+		return errors.New("No SVID found")
+	}
+	block, _ := pem.Decode([]byte(svid.Value))
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("invalid SVID: %s", err)
+	}
+
+	for key, val := range resultMap {
+		if strings.HasSuffix(key, ".sig") {
+			continue
+		}
+		if key == "SVID" {
+			continue
+		}
+		if val.ResultType == v1beta1.InternalTektonResultType {
+			continue
+		}
+		if err := verifyOne(cert.PublicKey, key, resultMap); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func verifyOne(pub interface{}, key string, results map[string]v1beta1.PipelineResourceResult) error {
+	signature, ok := results[key+".sig"]
+	if !ok {
+		return fmt.Errorf("no signature found for %s", key)
+	}
+	b, err := base64.StdEncoding.DecodeString(signature.Value)
+	if err != nil {
+		return fmt.Errorf("invalid signature: %s", err)
+	}
+	h := sha256.Sum256([]byte(results[key].Value))
+	// Check val against sig
+	switch t := pub.(type) {
+	case *ecdsa.PublicKey:
+		if !ecdsa.VerifyASN1(t, h[:], b) {
+			return errors.New("invalid signature")
+		}
+		return nil
+	case *rsa.PublicKey:
+		return rsa.VerifyPKCS1v15(t, crypto.SHA256, h[:], b)
+	case ed25519.PublicKey:
+		if !ed25519.Verify(t, []byte(results[key].Value), b) {
+			return errors.New("invalid signature")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported key type: %s", t)
+	}
 }
 
 func setTaskRunStatusBasedOnSidecarStatus(sidecarStatuses []corev1.ContainerStatus, trs *v1beta1.TaskRunStatus) {

@@ -223,9 +223,35 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 	// Add podTemplate Volumes to the explicitly declared use volumes
 	volumes = append(volumes, taskSpec.Volumes...)
 	volumes = append(volumes, podTemplate.Volumes...)
-
 	if err := v1beta1.ValidateVolumes(volumes); err != nil {
 		return nil, err
+	}
+
+	// IF SPIRE
+	typ := corev1.HostPathSocket
+	volumes = append(volumes, corev1.Volume{
+		Name: "spire",
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: "/run/spire/sockets/agent.sock",
+				Type: &typ,
+			},
+		},
+	})
+	podName := names.SimpleNameGenerator.RestrictLengthWithRandomSuffix(fmt.Sprintf("%s-pod", taskRun.Name))
+	for i := range stepContainers {
+		c := &stepContainers[i]
+		c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+			Name:      "spire",
+			MountPath: "/run/spire/sockets/agent.sock",
+		})
+	}
+	for i := range initContainers {
+		c := &initContainers[i]
+		c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+			Name:      "spire",
+			MountPath: "/run/spire/sockets/agent.sock",
+		})
 	}
 
 	// Using node affinity on taskRuns sharing PVC workspace, with an Affinity Assistant
@@ -273,7 +299,7 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 			// Add a unique suffix to avoid confusion when a build
 			// is deleted and re-created with the same name.
 			// We don't use RestrictLengthWithRandomSuffix here because k8s fakes don't support it.
-			Name: names.SimpleNameGenerator.RestrictLengthWithRandomSuffix(fmt.Sprintf("%s-pod", taskRun.Name)),
+			Name: podName,
 			// If our parent TaskRun is deleted, then we should be as well.
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(taskRun, groupVersionKind),

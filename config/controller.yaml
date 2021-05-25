@@ -88,6 +88,8 @@ spec:
           mountPath: /etc/config-logging
         - name: config-registry-cert
           mountPath: /etc/config-registry-cert
+        - name: spire
+          mountPath: /run/spire/sockets/agent.sock
         env:
         - name: SYSTEM_NAMESPACE
           valueFrom:
@@ -150,6 +152,9 @@ spec:
         - name: config-registry-cert
           configMap:
             name: config-registry-cert
+        - name: spire
+          hostPath:
+            path: /run/spire/sockets/agent.sock
 ---
 apiVersion: v1
 kind: Service

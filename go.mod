@@ -22,16 +22,20 @@ require (
 	github.com/nbio/st v0.0.0-20140626010706-e9e8d9816f32 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.7.0 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.5
+	github.com/spiffe/spire v0.12.2 // indirect
+	github.com/spiffe/spire/proto/spire v0.10.1
 	github.com/tektoncd/plumbing v0.0.0-20210420200944-17170d5e7bc9
 	go.opencensus.io v0.23.0
 	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad // indirect
 	golang.org/x/mod v0.4.1 // indirect
-	golang.org/x/oauth2 v0.0.0-20210126194326-f9ce19ea3013
+	golang.org/x/oauth2 v0.0.0-20210313182246-cd4f82c27b84
 	golang.org/x/term v0.0.0-20201210144234-2321bbc49cbf // indirect
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
 	golang.org/x/tools v0.1.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.1.0
+	google.golang.org/grpc v1.36.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	k8s.io/api v0.19.7
 	k8s.io/apimachinery v0.19.7
