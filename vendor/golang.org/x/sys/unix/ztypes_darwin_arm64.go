@@ -373,11 +373,14 @@ const (
 	SizeofSockaddrUnix     = 0x6a
 	SizeofSockaddrDatalink = 0x14
 	SizeofSockaddrCtl      = 0x20
+<<<<<<< HEAD
 	SizeofSockaddrVM       = 0xc
 	SizeofXvsockpcb        = 0xa8
 	SizeofXSocket          = 0x64
 	SizeofXSockbuf         = 0x18
 	SizeofXVSockPgen       = 0x20
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 	SizeofXucred           = 0x4c
 	SizeofLinger           = 0x8
 	SizeofIovec            = 0x10

@@ -5,7 +5,10 @@
 package externalaccount
 
 import (
+<<<<<<< HEAD
 	"bytes"
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -13,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/oauth2"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -270,6 +274,7 @@ func (cs awsCredentialSource) subjectToken() (string, error) {
 	if cs.requestSigner == nil {
 		awsSecurityCredentials, err := cs.getSecurityCredentials()
 		if err != nil {
+<<<<<<< HEAD
 			return "", err
 		}
 
@@ -277,6 +282,15 @@ func (cs awsCredentialSource) subjectToken() (string, error) {
 			return "", err
 		}
 
+=======
+			return "", err
+		}
+
+		if cs.region, err = cs.getRegion(); err != nil {
+			return "", err
+		}
+
+>>>>>>> 0c14db0fb (WIP spire.)
 		cs.requestSigner = &awsRequestSigner{
 			RegionName:             cs.region,
 			AwsSecurityCredentials: awsSecurityCredentials,
@@ -344,9 +358,12 @@ func (cs *awsCredentialSource) getRegion() (string, error) {
 	if envAwsRegion := getenv("AWS_REGION"); envAwsRegion != "" {
 		return envAwsRegion, nil
 	}
+<<<<<<< HEAD
 	if envAwsRegion := getenv("AWS_DEFAULT_REGION"); envAwsRegion != "" {
 		return envAwsRegion, nil
 	}
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 
 	if cs.RegionURL == "" {
 		return "", errors.New("oauth2/google: unable to determine AWS region")

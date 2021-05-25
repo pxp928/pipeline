@@ -931,6 +931,7 @@ type StartupInfoEx struct {
 
 // ProcThreadAttributeList is a placeholder type to represent a PROC_THREAD_ATTRIBUTE_LIST.
 //
+<<<<<<< HEAD
 // To create a *ProcThreadAttributeList, use NewProcThreadAttributeList, update
 // it with ProcThreadAttributeListContainer.Update, free its memory using
 // ProcThreadAttributeListContainer.Delete, and access the list itself using
@@ -940,6 +941,16 @@ type ProcThreadAttributeList struct{}
 type ProcThreadAttributeListContainer struct {
 	data     *ProcThreadAttributeList
 	pointers []unsafe.Pointer
+=======
+// To create a *ProcThreadAttributeList, use NewProcThreadAttributeList, and
+// free its memory using ProcThreadAttributeList.Delete.
+type ProcThreadAttributeList struct {
+	// This is of type unsafe.Pointer, not of type byte or uintptr, because
+	// the contents of it is mostly a list of pointers, and in most cases,
+	// that's a list of pointers to Go-allocated objects. In order to keep
+	// the GC from collecting these objects, we declare this as unsafe.Pointer.
+	_ [1]unsafe.Pointer
+>>>>>>> 0c14db0fb (WIP spire.)
 }
 
 type ProcessInformation struct {
@@ -2383,12 +2394,15 @@ type LIST_ENTRY struct {
 	Blink *LIST_ENTRY
 }
 
+<<<<<<< HEAD
 type RUNTIME_FUNCTION struct {
 	BeginAddress uint32
 	EndAddress   uint32
 	UnwindData   uint32
 }
 
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 type LDR_DATA_TABLE_ENTRY struct {
 	reserved1          [2]uintptr
 	InMemoryOrderLinks LIST_ENTRY
@@ -2579,6 +2593,7 @@ const (
 	FILE_PIPE_SERVER_END = 0x00000001
 )
 
+<<<<<<< HEAD
 const (
 	// FileInformationClass for NtSetInformationFile
 	FileBasicInformation                         = 4
@@ -2633,6 +2648,8 @@ const (
 	FILE_LINK_FORCE_RESIZE_SR                      = 0x00000180
 )
 
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 // ProcessInformationClasses for NtQueryInformationProcess and NtSetInformationProcess.
 const (
 	ProcessBasicInformation = iota
@@ -2749,6 +2766,7 @@ type PROCESS_BASIC_INFORMATION struct {
 	InheritedFromUniqueProcessId uintptr
 }
 
+<<<<<<< HEAD
 type SYSTEM_PROCESS_INFORMATION struct {
 	NextEntryOffset              uint32
 	NumberOfThreads              uint32
@@ -2983,6 +3001,8 @@ type RTL_PROCESS_MODULES struct {
 	Modules         [1]RTL_PROCESS_MODULE_INFORMATION
 }
 
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 // Constants for LocalAlloc flags.
 const (
 	LMEM_FIXED          = 0x0
@@ -3077,6 +3097,7 @@ var (
 	RT_MANIFEST     ResourceID = 24
 )
 
+<<<<<<< HEAD
 type VS_FIXEDFILEINFO struct {
 	Signature        uint32
 	StrucVersion     uint32
@@ -3093,6 +3114,8 @@ type VS_FIXEDFILEINFO struct {
 	FileDateLS       uint32
 }
 
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 type COAUTHIDENTITY struct {
 	User           *uint16
 	UserLength     uint32
@@ -3166,6 +3189,7 @@ const (
 
 // Flag for QueryFullProcessImageName.
 const PROCESS_NAME_NATIVE = 1
+<<<<<<< HEAD
 
 type ModuleInfo struct {
 	BaseOfDll   uintptr
@@ -3174,3 +3198,5 @@ type ModuleInfo struct {
 }
 
 const ALL_PROCESSOR_GROUPS = 0xFFFF
+=======
+>>>>>>> 0c14db0fb (WIP spire.)

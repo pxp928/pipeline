@@ -16,15 +16,42 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/opencontainers/image-spec v1.0.3-0.20211202222133-eacdcc10569b
 	github.com/pkg/errors v0.9.1
+	github.com/sirupsen/logrus v1.7.0 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.5
+<<<<<<< HEAD
+	github.com/spiffe/spire v0.12.2 // indirect
+	github.com/spiffe/spire/proto/spire v0.10.1
+	github.com/tektoncd/plumbing v0.0.0-20210420200944-17170d5e7bc9
+	go.opencensus.io v0.23.0
+	go.uber.org/zap v1.16.0
+	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad // indirect
+	golang.org/x/mod v0.4.1 // indirect
+	golang.org/x/oauth2 v0.0.0-20210313182246-cd4f82c27b84
+	golang.org/x/term v0.0.0-20201210144234-2321bbc49cbf // indirect
+	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect
+	golang.org/x/tools v0.1.0 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.1.0
+	google.golang.org/grpc v1.36.0
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	k8s.io/api v0.19.7
+	k8s.io/apimachinery v0.19.7
+	k8s.io/client-go v0.19.7
+	k8s.io/code-generator v0.19.7
+	k8s.io/gengo v0.0.0-20201214224949-b6c5ce23f027 // indirect
+=======
 	github.com/tektoncd/plumbing v0.0.0-20211012143332-c7cc43d9bc0c
 	go.opencensus.io v0.23.0
 	go.uber.org/zap v1.19.1
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
+	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0
+	google.golang.org/grpc v1.43.0
 	k8s.io/api v0.22.5
 	k8s.io/apimachinery v0.22.5
 	k8s.io/client-go v0.22.5
 	k8s.io/code-generator v0.22.5
+>>>>>>> 3970560e5 (Added SPIFFE entry registration and SVID entrypointer backoff (#2))
 	k8s.io/klog v1.0.0
 	k8s.io/kube-openapi v0.0.0-20220114203427-a0453230fd26
 	knative.dev/pkg v0.0.0-20220131144930-f4b57aef0006
@@ -38,6 +65,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.11.0 // indirect
 	github.com/emicklei/go-restful v2.15.0+incompatible // indirect
 	github.com/google/go-containerregistry/pkg/authn/kubernetes v0.0.0-20220120123041-d22850aca581 // indirect
+	github.com/spiffe/spire-api-sdk v1.2.0
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/net v0.0.0-20220114011407-0dd24b26b47d // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect

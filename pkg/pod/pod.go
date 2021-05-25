@@ -56,6 +56,8 @@ const (
 var (
 	ReleaseAnnotation = "pipeline.tekton.dev/release"
 
+	SpiffeIdAnnotation = "spiffe.io/spiffe-id"
+
 	groupVersionKind = schema.GroupVersionKind{
 		Group:   v1beta1.SchemeGroupVersion.Group,
 		Version: v1beta1.SchemeGroupVersion.Version,
@@ -271,9 +273,54 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 	// Add podTemplate Volumes to the explicitly declared use volumes
 	volumes = append(volumes, taskSpec.Volumes...)
 	volumes = append(volumes, podTemplate.Volumes...)
-
 	if err := v1beta1.ValidateVolumes(volumes); err != nil {
 		return nil, err
+	}
+
+	podAnnotations := kmeta.CopyMap(taskRun.Annotations)
+	if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
+		podAnnotations[SpiffeIdAnnotation] = fmt.Sprintf("ns/%v/taskrun/%v", taskRun.Namespace, taskRun.Name)
+		volumes = append(volumes, corev1.Volume{
+			Name: "spiffe-workload-api",
+			VolumeSource: corev1.VolumeSource{
+				CSI: &corev1.CSIVolumeSource{
+					Driver: "csi.spiffe.io",
+				},
+			},
+		},
+	})
+	podName := names.SimpleNameGenerator.RestrictLengthWithRandomSuffix(fmt.Sprintf("%s-pod", taskRun.Name))
+	for i := range stepContainers {
+		c := &stepContainers[i]
+		c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+			Name:      "spire",
+			MountPath: "/run/spire/sockets/agent.sock",
+		})
+		//podName := names.SimpleNameGenerator.RestrictLengthWithRandomSuffix(fmt.Sprintf("%s-pod", taskRun.Name))
+		for i := range stepContainers {
+			c := &stepContainers[i]
+			c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+				Name:      "spiffe-workload-api",
+				MountPath: "/spiffe-workload-api",
+			})
+		}
+		for i := range initContainers {
+			c := &initContainers[i]
+			c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+				Name:      "spiffe-workload-api",
+				MountPath: "/spiffe-workload-api",
+			})
+		}
+
+	// Using node affinity on taskRuns sharing PVC workspace, with an Affinity Assistant
+	// is mutually exclusive with other affinity on taskRun pods. If other
+	// affinity is wanted, that should be added on the Affinity Assistant pod unless
+	// assistant is disabled. When Affinity Assistant is disabled, an affinityAssistantName is not set.
+	var affinity *corev1.Affinity
+	if affinityAssistantName := taskRun.Annotations[workspace.AnnotationAffinityAssistantName]; affinityAssistantName != "" {
+		affinity = nodeAffinityUsingAffinityAssistant(affinityAssistantName)
+	} else {
+		affinity = podTemplate.Affinity
 	}
 
 	mergedPodContainers := stepContainers
@@ -294,7 +341,6 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 		priorityClassName = *podTemplate.PriorityClassName
 	}
 
-	podAnnotations := kmeta.CopyMap(taskRun.Annotations)
 	version, err := changeset.Get()
 	if err != nil {
 		return nil, err
@@ -322,9 +368,10 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 			// created so that it can access colocated resources.
 			Namespace: taskRun.Namespace,
 			// Generate a unique name based on the build's name.
-			// The name is univocally generated so that in case of
-			// stale informer cache, we never create duplicate Pods
-			Name: kmeta.ChildName(taskRun.Name, podNameSuffix),
+			// Add a unique suffix to avoid confusion when a build
+			// is deleted and re-created with the same name.
+			// We don't use RestrictLengthWithRandomSuffix here because k8s fakes don't support it.
+			Name: podName,
 			// If our parent TaskRun is deleted, then we should be as well.
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(taskRun, groupVersionKind),
