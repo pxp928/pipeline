@@ -432,6 +432,7 @@ func legacyMerge(in piface.MergeInput) piface.MergeOutput {
 	// a marshal and unmarshal operation.
 	srcv := in.Source.(unwrapper).protoUnwrap()
 	marshaler, ok := srcv.(legacyMarshaler)
+<<<<<<< HEAD
 	if !ok {
 		return piface.MergeOutput{}
 	}
@@ -446,6 +447,15 @@ func legacyMerge(in piface.MergeInput) piface.MergeOutput {
 		// legacy Marshal/Unmarshal methods are present, for
 		// consistency.
 		return piface.MergeOutput{Flags: piface.MergeComplete}
+=======
+	if !ok {
+		return piface.MergeOutput{}
+	}
+	dstv = in.Destination.(unwrapper).protoUnwrap()
+	unmarshaler, ok := dstv.(legacyUnmarshaler)
+	if !ok {
+		return piface.MergeOutput{}
+>>>>>>> 0c14db0fb (WIP spire.)
 	}
 	b, err := marshaler.Marshal()
 	if err != nil {

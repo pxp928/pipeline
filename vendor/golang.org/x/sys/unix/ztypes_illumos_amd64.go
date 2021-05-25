@@ -13,8 +13,11 @@ const (
 	I_STR     = 0x5308
 	I_POP     = 0x5303
 	I_PUSH    = 0x5302
+<<<<<<< HEAD
 	I_LINK    = 0x530c
 	I_UNLINK  = 0x530d
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 	I_PLINK   = 0x5316
 	I_PUNLINK = 0x5317
 
@@ -27,14 +30,22 @@ type strbuf struct {
 	Buf    *int8
 }
 
+<<<<<<< HEAD
 type Strioctl struct {
+=======
+type strioctl struct {
+>>>>>>> 0c14db0fb (WIP spire.)
 	Cmd    int32
 	Timout int32
 	Len    int32
 	Dp     *int8
 }
 
+<<<<<<< HEAD
 type Lifreq struct {
+=======
+type lifreq struct {
+>>>>>>> 0c14db0fb (WIP spire.)
 	Name   [32]int8
 	Lifru1 [4]byte
 	Type   uint32

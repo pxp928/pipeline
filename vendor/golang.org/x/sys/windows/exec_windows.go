@@ -135,8 +135,13 @@ func FullPath(name string) (path string, err error) {
 	}
 }
 
+<<<<<<< HEAD
 // NewProcThreadAttributeList allocates a new ProcThreadAttributeListContainer, with the requested maximum number of attributes.
 func NewProcThreadAttributeList(maxAttrCount uint32) (*ProcThreadAttributeListContainer, error) {
+=======
+// NewProcThreadAttributeList allocates a new ProcThreadAttributeList, with the requested maximum number of attributes.
+func NewProcThreadAttributeList(maxAttrCount uint32) (*ProcThreadAttributeList, error) {
+>>>>>>> 0c14db0fb (WIP spire.)
 	var size uintptr
 	err := initializeProcThreadAttributeList(nil, maxAttrCount, 0, &size)
 	if err != ERROR_INSUFFICIENT_BUFFER {
@@ -145,6 +150,7 @@ func NewProcThreadAttributeList(maxAttrCount uint32) (*ProcThreadAttributeListCo
 		}
 		return nil, err
 	}
+<<<<<<< HEAD
 	alloc, err := LocalAlloc(LMEM_FIXED, uint32(size))
 	if err != nil {
 		return nil, err
@@ -152,6 +158,12 @@ func NewProcThreadAttributeList(maxAttrCount uint32) (*ProcThreadAttributeListCo
 	// size is guaranteed to be ≥1 by InitializeProcThreadAttributeList.
 	al := &ProcThreadAttributeListContainer{data: (*ProcThreadAttributeList)(unsafe.Pointer(alloc))}
 	err = initializeProcThreadAttributeList(al.data, maxAttrCount, 0, &size)
+=======
+	const psize = unsafe.Sizeof(uintptr(0))
+	// size is guaranteed to be ≥1 by InitializeProcThreadAttributeList.
+	al := (*ProcThreadAttributeList)(unsafe.Pointer(&make([]unsafe.Pointer, (size+psize-1)/psize)[0]))
+	err = initializeProcThreadAttributeList(al, maxAttrCount, 0, &size)
+>>>>>>> 0c14db0fb (WIP spire.)
 	if err != nil {
 		return nil, err
 	}
@@ -159,6 +171,7 @@ func NewProcThreadAttributeList(maxAttrCount uint32) (*ProcThreadAttributeListCo
 }
 
 // Update modifies the ProcThreadAttributeList using UpdateProcThreadAttribute.
+<<<<<<< HEAD
 func (al *ProcThreadAttributeListContainer) Update(attribute uintptr, value unsafe.Pointer, size uintptr) error {
 	al.pointers = append(al.pointers, value)
 	return updateProcThreadAttribute(al.data, 0, attribute, value, size, nil, nil)
@@ -175,4 +188,13 @@ func (al *ProcThreadAttributeListContainer) Delete() {
 // List returns the actual ProcThreadAttributeList to be passed to StartupInfoEx.
 func (al *ProcThreadAttributeListContainer) List() *ProcThreadAttributeList {
 	return al.data
+=======
+func (al *ProcThreadAttributeList) Update(attribute uintptr, flags uint32, value unsafe.Pointer, size uintptr, prevValue unsafe.Pointer, returnedSize *uintptr) error {
+	return updateProcThreadAttribute(al, flags, attribute, value, size, prevValue, returnedSize)
+}
+
+// Delete frees ProcThreadAttributeList's resources.
+func (al *ProcThreadAttributeList) Delete() {
+	deleteProcThreadAttributeList(al)
+>>>>>>> 0c14db0fb (WIP spire.)
 }

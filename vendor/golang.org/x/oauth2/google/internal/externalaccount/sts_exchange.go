@@ -65,9 +65,12 @@ func exchangeToken(ctx context.Context, endpoint string, request *stsTokenExchan
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1<<20))
+<<<<<<< HEAD
 	if err != nil {
 		return nil, err
 	}
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 	if c := resp.StatusCode; c < 200 || c > 299 {
 		return nil, fmt.Errorf("oauth2/google: status code %d: %s", c, body)
 	}

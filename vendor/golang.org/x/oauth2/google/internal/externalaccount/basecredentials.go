@@ -8,10 +8,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+<<<<<<< HEAD
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+=======
+	"strconv"
+>>>>>>> 0c14db0fb (WIP spire.)
 	"time"
 
 	"golang.org/x/oauth2"
@@ -140,11 +144,19 @@ func (c *Config) tokenSource(ctx context.Context, tokenURLValidPats []*regexp.Re
 	}
 	scopes := c.Scopes
 	ts.conf.Scopes = []string{"https://www.googleapis.com/auth/cloud-platform"}
+<<<<<<< HEAD
 	imp := ImpersonateTokenSource{
 		Ctx:    ctx,
 		URL:    c.ServiceAccountImpersonationURL,
 		Scopes: scopes,
 		Ts:     oauth2.ReuseTokenSource(nil, ts),
+=======
+	imp := impersonateTokenSource{
+		ctx:    ctx,
+		url:    c.ServiceAccountImpersonationURL,
+		scopes: scopes,
+		ts:     oauth2.ReuseTokenSource(nil, ts),
+>>>>>>> 0c14db0fb (WIP spire.)
 	}
 	return oauth2.ReuseTokenSource(nil, imp), nil
 }
@@ -240,6 +252,7 @@ func (ts tokenSource) Token() (*oauth2.Token, error) {
 		ClientID:     conf.ClientID,
 		ClientSecret: conf.ClientSecret,
 	}
+<<<<<<< HEAD
 	var options map[string]interface{}
 	// Do not pass workforce_pool_user_project when client authentication is used.
 	// The client ID is sufficient for determining the user project.
@@ -249,6 +262,9 @@ func (ts tokenSource) Token() (*oauth2.Token, error) {
 		}
 	}
 	stsResp, err := exchangeToken(ts.ctx, conf.TokenURL, &stsRequest, clientAuth, header, options)
+=======
+	stsResp, err := exchangeToken(ts.ctx, conf.TokenURL, &stsRequest, clientAuth, header, nil)
+>>>>>>> 0c14db0fb (WIP spire.)
 	if err != nil {
 		return nil, err
 	}

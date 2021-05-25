@@ -2,8 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+<<<<<<< HEAD
 //go:build (freebsd || netbsd || openbsd) && gc
 // +build freebsd netbsd openbsd
+=======
+//go:build (darwin || freebsd || netbsd || openbsd) && gc
+// +build darwin freebsd netbsd openbsd
+>>>>>>> 0c14db0fb (WIP spire.)
 // +build gc
 
 #include "textflag.h"

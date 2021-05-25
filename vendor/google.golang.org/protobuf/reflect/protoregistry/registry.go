@@ -121,7 +121,11 @@ func (r *Files) RegisterFile(file protoreflect.FileDescriptor) error {
 		r.filesByPath = make(map[string][]protoreflect.FileDescriptor)
 	}
 	path := file.Path()
+<<<<<<< HEAD
 	if prev := r.filesByPath[path]; len(prev) > 0 {
+=======
+	if prev := r.filesByPath[path]; prev != nil {
+>>>>>>> 0c14db0fb (WIP spire.)
 		r.checkGenProtoConflict(path)
 		err := errors.New("file %q is already registered", file.Path())
 		err = amendErrorWithCaller(err, prev[0], file)

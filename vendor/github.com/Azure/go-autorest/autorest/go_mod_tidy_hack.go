@@ -1,4 +1,7 @@
+<<<<<<< HEAD
 //go:build modhack
+=======
+>>>>>>> 0c14db0fb (WIP spire.)
 // +build modhack
 
 package autorest

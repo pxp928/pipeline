@@ -1,7 +1,6 @@
-//go:build modhack
 // +build modhack
 
-package cli
+package validation
 
 // Copyright 2017 Microsoft Corporation
 //
