@@ -271,9 +271,47 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 	// Add podTemplate Volumes to the explicitly declared use volumes
 	volumes = append(volumes, taskSpec.Volumes...)
 	volumes = append(volumes, podTemplate.Volumes...)
-
 	if err := v1beta1.ValidateVolumes(volumes); err != nil {
 		return nil, err
+	}
+
+	if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
+		typ := corev1.HostPathSocket
+		volumes = append(volumes, corev1.Volume{
+			Name: "spire",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/run/spire/sockets/agent.sock",
+					Type: &typ,
+				},
+			},
+		})
+		//podName := names.SimpleNameGenerator.RestrictLengthWithRandomSuffix(fmt.Sprintf("%s-pod", taskRun.Name))
+		for i := range stepContainers {
+			c := &stepContainers[i]
+			c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+				Name:      "spire",
+				MountPath: "/run/spire/sockets/agent.sock",
+			})
+		}
+		for i := range initContainers {
+			c := &initContainers[i]
+			c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+				Name:      "spire",
+				MountPath: "/run/spire/sockets/agent.sock",
+			})
+		}
+
+		// // Using node affinity on taskRuns sharing PVC workspace, with an Affinity Assistant
+		// // is mutually exclusive with other affinity on taskRun pods. If other
+		// // affinity is wanted, that should be added on the Affinity Assistant pod unless
+		// // assistant is disabled. When Affinity Assistant is disabled, an affinityAssistantName is not set.
+		// var affinity *corev1.Affinity
+		// if affinityAssistantName := taskRun.Annotations[workspace.AnnotationAffinityAssistantName]; affinityAssistantName != "" {
+		// 	affinity = nodeAffinityUsingAffinityAssistant(affinityAssistantName)
+		// } else {
+		// 	affinity = podTemplate.Affinity
+		// }
 	}
 
 	mergedPodContainers := stepContainers

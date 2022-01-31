@@ -48,6 +48,8 @@ const (
 	DefaultEnableCustomTasks = false
 	// DefaultScopeWhenExpressionsToTask is the default value for "scope-when-expressions-to-task".
 	DefaultScopeWhenExpressionsToTask = false
+	// DefaultEnableSpire is the default value for "enable-sire".
+	DefaultEnableSpire = false
 	// DefaultEnableAPIFields is the default value for "enable-api-fields".
 	DefaultEnableAPIFields = StableAPIFields
 
@@ -61,6 +63,7 @@ const (
 	enableCustomTasks                   = "enable-custom-tasks"
 	enableAPIFields                     = "enable-api-fields"
 	scopeWhenExpressionsToTask          = "scope-when-expressions-to-task"
+	enableSpire                         = "enable-spire"
 )
 
 // FeatureFlags holds the features configurations
@@ -75,6 +78,7 @@ type FeatureFlags struct {
 	EnableTektonOCIBundles           bool
 	EnableCustomTasks                bool
 	ScopeWhenExpressionsToTask       bool
+	EnableSpire                      bool
 	EnableAPIFields                  string
 }
 
@@ -122,6 +126,9 @@ func NewFeatureFlagsFromMap(cfgMap map[string]string) (*FeatureFlags, error) {
 		return nil, err
 	}
 	if err := setFeature(scopeWhenExpressionsToTask, DefaultScopeWhenExpressionsToTask, &tc.ScopeWhenExpressionsToTask); err != nil {
+		return nil, err
+	}
+	if err := setFeature(enableSpire, DefaultEnableSpire, &tc.EnableSpire); err != nil {
 		return nil, err
 	}
 	if err := setEnabledAPIFields(cfgMap, DefaultEnableAPIFields, &tc.EnableAPIFields); err != nil {
