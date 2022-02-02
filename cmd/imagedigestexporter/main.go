@@ -86,16 +86,17 @@ func main() {
 	}
 	ctx := context.Background()
 
-	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix:///run/spire/sockets/agent.sock"))
-	if err != nil {
-		logger.Fatal(err)
-	}
-	signed, err := entrypoint.Sign(output, client)
-	if err != nil {
-		logger.Fatal(err)
-	}
+	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix:///spiffe-workload-api/spire-agent.sock"))
+	if err == nil {
+		signed, err := entrypoint.Sign(output, client)
+		if err != nil {
+			logger.Fatal(err)
+		}
 
-	output = append(output, signed...)
+		output = append(output, signed...)
+	} else {
+		logger.Infof("Spire workload API not initalized due to error: %s", err.Error())
+	}
 
 	if err := termination.WriteMessage(*terminationMessagePath, output); err != nil {
 		logger.Fatalf("Unexpected error writing message %s to %s", *terminationMessagePath, err)

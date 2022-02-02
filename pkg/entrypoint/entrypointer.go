@@ -145,26 +145,26 @@ func (e Entrypointer) Go() error {
 
 	ctx := context.Background()
 	var err error
-	var client *workloadapi.Client
+	var client *workloadapi.Client = nil
 
-	client, err = workloadapi.New(ctx, workloadapi.WithAddr("unix:///run/spire/sockets/agent.sock"))
-	if err != nil {
-		return err
+	client, err = workloadapi.New(ctx, workloadapi.WithAddr("unix:///spiffe-workload-api/spire-agent.sock"))
+	if err == nil {
+		jwt, err := client.FetchJWTSVID(ctx, jwtsvid.Params{
+			Audience: "sigstore",
+		})
+		if err != nil {
+			return err
+		}
+		logger.Infof("Obtained JWT from spire - %s", jwt.ID)
+	} else {
+		logger.Infof("Spire workload API not initalized due to error: %s", err.Error())
 	}
-	jwt, err := client.FetchJWTSVID(ctx, jwtsvid.Params{
-		Audience: "sigstore",
-	})
-	if err != nil {
-		return err
-	}
-	logger.Info("Obtained JWT from spire - %s", jwt.ID)
 
 	if e.Timeout != nil && *e.Timeout < time.Duration(0) {
 		err = fmt.Errorf("negative timeout specified")
 	}
 
 	if err == nil {
-		ctx := context.Background()
 		var cancel context.CancelFunc
 		if e.Timeout != nil && *e.Timeout != time.Duration(0) {
 			ctx, cancel = context.WithTimeout(ctx, *e.Timeout)
@@ -215,8 +215,15 @@ func (e Entrypointer) Go() error {
 }
 
 func Sign(results []v1beta1.PipelineResourceResult, client *workloadapi.Client) ([]v1beta1.PipelineResourceResult, error) {
-
 	xsvid, err := client.FetchX509SVID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	x509set, err := client.FetchX509Bundles(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	x509Bundle := x509set.Bundles()
 	if err != nil {
 		return nil, err
 	}
@@ -229,6 +236,19 @@ func Sign(results []v1beta1.PipelineResourceResult, client *workloadapi.Client) 
 		output = append(output, v1beta1.PipelineResourceResult{
 			Key:        "SVID",
 			Value:      string(p),
+			ResultType: v1beta1.TaskRunResultType,
+		})
+		var trust []byte
+		for _, c := range x509Bundle[0].X509Authorities() {
+			inter := pem.EncodeToMemory(&pem.Block{
+				Bytes: c.Raw,
+				Type:  "CERTIFICATE",
+			})
+			trust = append(trust, inter...)
+		}
+		output = append(output, v1beta1.PipelineResourceResult{
+			Key:        "TRUST_BUNDLE",
+			Value:      string(trust),
 			ResultType: v1beta1.TaskRunResultType,
 		})
 	}
@@ -268,11 +288,13 @@ func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
 		})
 	}
 
-	signed, err := Sign(output, client)
-	if err != nil {
-		return err
+	if client != nil {
+		signed, err := Sign(output, client)
+		if err != nil {
+			return err
+		}
+		output = append(output, signed...)
 	}
-	output = append(output, signed...)
 
 	// push output to termination path
 	if len(output) != 0 {

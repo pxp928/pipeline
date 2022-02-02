@@ -163,22 +163,28 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 				merr = multierror.Append(merr, err)
 
 			} else {
-
-				if err := checkValidated(results); err != nil {
-					trs.SetCondition(&apis.Condition{
-						Type:    "VERIFIED",
-						Status:  corev1.ConditionFalse,
-						Reason:  "checked signatures",
-						Message: err.Error(),
-					})
-				} else {
-					trs.SetCondition(&apis.Condition{
-						Type:    "VERIFIED",
-						Status:  corev1.ConditionTrue,
-						Reason:  "checked signatures",
-						Message: "everything is cool",
-					})
+				logger.Info("Results: ", results)
+				if tr.IsSuccessful() {
+					if len(results) >= 1 && results[0].Key != "StartedAt" {
+						logger.Info("Validating Results with spire: ", results)
+						if err := checkValidated(results); err != nil {
+							trs.SetCondition(&apis.Condition{
+								Type:    "VERIFICATION FAILED",
+								Status:  corev1.ConditionFalse,
+								Reason:  "signatures verification failure",
+								Message: err.Error(),
+							})
+						} else {
+							trs.SetCondition(&apis.Condition{
+								Type:    "VERIFIED",
+								Status:  corev1.ConditionTrue,
+								Reason:  "checked signatures",
+								Message: "Spire verified signature",
+							})
+						}
+					}
 				}
+
 				time, err := extractStartedAtTimeFromResults(results)
 				if err != nil {
 					logger.Errorf("error setting the start time of step %q in taskrun %q: %v", s.Name, tr.Name, err)
@@ -227,12 +233,16 @@ func checkValidated(rs []v1beta1.PipelineResourceResult) error {
 	for _, r := range rs {
 		resultMap[r.Key] = r
 	}
-	svid, ok := resultMap["SVID"]
-	if !ok {
-		return errors.New("No SVID found")
+
+	cert, err := getSVID(resultMap)
+	if err != nil {
+		return err
 	}
-	block, _ := pem.Decode([]byte(svid.Value))
-	cert, err := x509.ParseCertificate(block.Bytes)
+
+	trust, err := getTrustBundle(resultMap)
+	if err != nil {
+		return err
+	}
 	if err != nil {
 		return fmt.Errorf("invalid SVID: %s", err)
 	}
@@ -244,14 +254,59 @@ func checkValidated(rs []v1beta1.PipelineResourceResult) error {
 		if key == "SVID" {
 			continue
 		}
+		if key == "TRUST_BUNDLE" {
+			continue
+		}
 		if val.ResultType == v1beta1.InternalTektonResultType {
 			continue
 		}
 		if err := verifyOne(cert.PublicKey, key, resultMap); err != nil {
 			return err
 		}
+		if err := verifyCertificateTrust(cert, trust); err != nil {
+			return err
+		}
 	}
 
+	return nil
+}
+
+func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certificate, error) {
+	svid, ok := resultMap["SVID"]
+	if !ok {
+		return nil, errors.New("no SVID found")
+	}
+	block, _ := pem.Decode([]byte(svid.Value))
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SVID: %s", err)
+	}
+	return cert, nil
+}
+
+func getTrustBundle(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.CertPool, error) {
+	bundle, ok := resultMap["TRUST_BUNDLE"]
+	if !ok {
+		return nil, errors.New("no Spire Trust Bundle found")
+	}
+	block, _ := pem.Decode([]byte(bundle.Value))
+	trustPool := x509.NewCertPool()
+	trust, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("invalid trust bundle: %s", err)
+	}
+	trustPool.AddCert(trust)
+	return trustPool, nil
+}
+
+func verifyCertificateTrust(cert *x509.Certificate, rootCertPool *x509.CertPool) error {
+	verifyOptions := x509.VerifyOptions{
+		Roots: rootCertPool,
+	}
+	chains, err := cert.Verify(verifyOptions)
+	if len(chains) == 0 || err != nil {
+		return fmt.Errorf("cert cannot be verified by provided roots")
+	}
 	return nil
 }
 

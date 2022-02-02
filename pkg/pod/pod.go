@@ -276,13 +276,11 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 	}
 
 	if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
-		typ := corev1.HostPathSocket
 		volumes = append(volumes, corev1.Volume{
-			Name: "spire",
+			Name: "spiffe-workload-api",
 			VolumeSource: corev1.VolumeSource{
-				HostPath: &corev1.HostPathVolumeSource{
-					Path: "/run/spire/sockets/agent.sock",
-					Type: &typ,
+				CSI: &corev1.CSIVolumeSource{
+					Driver: "csi.spiffe.io",
 				},
 			},
 		})
@@ -290,15 +288,15 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 		for i := range stepContainers {
 			c := &stepContainers[i]
 			c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
-				Name:      "spire",
-				MountPath: "/run/spire/sockets/agent.sock",
+				Name:      "spiffe-workload-api",
+				MountPath: "/spiffe-workload-api",
 			})
 		}
 		for i := range initContainers {
 			c := &initContainers[i]
 			c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
-				Name:      "spire",
-				MountPath: "/run/spire/sockets/agent.sock",
+				Name:      "spiffe-workload-api",
+				MountPath: "/spiffe-workload-api",
 			})
 		}
 
