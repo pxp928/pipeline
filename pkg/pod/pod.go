@@ -56,6 +56,8 @@ const (
 var (
 	ReleaseAnnotation = "pipeline.tekton.dev/release"
 
+	SpiffeIdAnnotation = "spiffe.io/spiffe-id"
+
 	groupVersionKind = schema.GroupVersionKind{
 		Group:   v1beta1.SchemeGroupVersion.Group,
 		Version: v1beta1.SchemeGroupVersion.Version,
@@ -275,7 +277,9 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 		return nil, err
 	}
 
+	podAnnotations := kmeta.CopyMap(taskRun.Annotations)
 	if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
+		podAnnotations[SpiffeIdAnnotation] = fmt.Sprintf("ns/%v/taskrun/%v", taskRun.Namespace, taskRun.Name)
 		volumes = append(volumes, corev1.Volume{
 			Name: "spiffe-workload-api",
 			VolumeSource: corev1.VolumeSource{
@@ -330,7 +334,6 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 		priorityClassName = *podTemplate.PriorityClassName
 	}
 
-	podAnnotations := kmeta.CopyMap(taskRun.Annotations)
 	version, err := changeset.Get()
 	if err != nil {
 		return nil, err
