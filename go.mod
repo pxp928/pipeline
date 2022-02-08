@@ -17,8 +17,6 @@ require (
 	github.com/opencontainers/image-spec v1.0.3-0.20211202222133-eacdcc10569b
 	github.com/pkg/errors v0.9.1
 	github.com/spiffe/go-spiffe/v2 v2.0.0-beta.5
-	github.com/spiffe/spire v0.12.2 // indirect
-	github.com/spiffe/spire/proto/spire v0.10.1 // indirect
 	github.com/tektoncd/plumbing v0.0.0-20211012143332-c7cc43d9bc0c
 	go.opencensus.io v0.23.0
 	go.uber.org/zap v1.19.1
@@ -26,8 +24,7 @@ require (
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0
-	google.golang.org/grpc v1.43.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	google.golang.org/grpc v1.43.0
 	k8s.io/api v0.22.5
 	k8s.io/apimachinery v0.22.5
 	k8s.io/client-go v0.22.5
@@ -46,6 +43,7 @@ require (
 	github.com/emicklei/go-restful v2.15.0+incompatible // indirect
 	github.com/go-logr/logr v1.2.2 // indirect
 	github.com/google/go-containerregistry/pkg/authn/kubernetes v0.0.0-20220120123041-d22850aca581 // indirect
+	github.com/spiffe/spire-api-sdk v1.2.0
 	go.uber.org/multierr v1.7.0 // indirect
 	golang.org/x/net v0.0.0-20220114011407-0dd24b26b47d // indirect
 	k8s.io/klog/v2 v2.40.1 // indirect

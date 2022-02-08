@@ -373,13 +373,14 @@ github.com/spiffe/go-spiffe/v2/internal/x509util
 github.com/spiffe/go-spiffe/v2/logger
 github.com/spiffe/go-spiffe/v2/proto/spiffe/workload
 github.com/spiffe/go-spiffe/v2/spiffeid
+github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig
 github.com/spiffe/go-spiffe/v2/svid/jwtsvid
 github.com/spiffe/go-spiffe/v2/svid/x509svid
 github.com/spiffe/go-spiffe/v2/workloadapi
-# github.com/spiffe/spire v0.12.2
+# github.com/spiffe/spire-api-sdk v1.2.0
 ## explicit
-# github.com/spiffe/spire/proto/spire v0.10.1
-## explicit
+github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1
+github.com/spiffe/spire-api-sdk/proto/spire/api/types
 # github.com/stretchr/testify v1.7.0
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/require
@@ -612,7 +613,6 @@ gopkg.in/square/go-jose.v2/jwt
 # gopkg.in/yaml.v2 v2.4.0
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
-## explicit
 gopkg.in/yaml.v3
 # k8s.io/api v0.22.5
 ## explicit
