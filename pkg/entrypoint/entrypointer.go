@@ -34,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
@@ -103,6 +104,24 @@ type Runner interface {
 type PostWriter interface {
 	// Write writes to the path when complete.
 	Write(file, content string)
+}
+
+var xsvid *x509svid.SVID = nil
+
+func getxsvid(client *workloadapi.Client) (*x509svid.SVID, error) {
+	var err error = nil
+	if xsvid == nil {
+		backoffSeconds := 2
+		for i := 0; i < 20; i += backoffSeconds {
+			xsvid, err = client.FetchX509SVID(context.Background())
+			if err == nil {
+				break
+			}
+			time.Sleep(time.Duration(backoffSeconds) * time.Second)
+		}
+
+	}
+	return xsvid, nil
 }
 
 // Go optionally waits for a file, runs the command, and writes a
@@ -206,15 +225,7 @@ func (e Entrypointer) Go() error {
 }
 
 func Sign(results []v1beta1.PipelineResourceResult, client *workloadapi.Client) ([]v1beta1.PipelineResourceResult, error) {
-	xsvid, err := client.FetchX509SVID(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	x509set, err := client.FetchX509Bundles(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	x509Bundle := x509set.Bundles()
+	xsvid, err := getxsvid(client)
 	if err != nil {
 		return nil, err
 	}
@@ -229,23 +240,9 @@ func Sign(results []v1beta1.PipelineResourceResult, client *workloadapi.Client) 
 			Value:      string(p),
 			ResultType: v1beta1.TaskRunResultType,
 		})
-		var trust []byte
-		for _, c := range x509Bundle[0].X509Authorities() {
-			inter := pem.EncodeToMemory(&pem.Block{
-				Bytes: c.Raw,
-				Type:  "CERTIFICATE",
-			})
-			trust = append(trust, inter...)
-		}
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        "TRUST_BUNDLE",
-			Value:      string(trust),
-			ResultType: v1beta1.TaskRunResultType,
-		})
 	}
 	for _, r := range results {
-		dgst := sha256.Sum256([]byte(r.Value))
-		s, err := xsvid.PrivateKey.Sign(rand.Reader, dgst[:], crypto.SHA256)
+		s, err := signWithKey(xsvid, r.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -258,8 +255,28 @@ func Sign(results []v1beta1.PipelineResourceResult, client *workloadapi.Client) 
 	return output, nil
 }
 
-func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
+func signWithKey(xsvid *x509svid.SVID, value string) ([]byte, error) {
+	dgst := sha256.Sum256([]byte(value))
+	s, err := xsvid.PrivateKey.Sign(rand.Reader, dgst[:], crypto.SHA256)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
 
+func getmanifest(results []v1beta1.PipelineResourceResult) string {
+	keys := []string{}
+	for _, r := range results {
+		keys = append(keys, r.Key)
+	}
+	return strings.Join(keys, ",")
+}
+
+func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
+	xsvid, err := getxsvid(client)
+	if err != nil {
+		return err
+	}
 	output := []v1beta1.PipelineResourceResult{}
 	for _, resultFile := range e.Results {
 		if resultFile == "" {
@@ -286,6 +303,22 @@ func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
 		}
 		output = append(output, signed...)
 	}
+	// get complete manifest of keys such that it can be verified
+	manifest := getmanifest(output)
+	output = append(output, v1beta1.PipelineResourceResult{
+		Key:        "RESULT_MANIFEST",
+		Value:      manifest,
+		ResultType: v1beta1.TaskRunResultType,
+	})
+	manifestSig, err := signWithKey(xsvid, manifest)
+	if err != nil {
+		return err
+	}
+	output = append(output, v1beta1.PipelineResourceResult{
+		Key:        "RESULT_MANIFEST.sig",
+		Value:      base64.StdEncoding.EncodeToString(manifestSig),
+		ResultType: v1beta1.TaskRunResultType,
+	})
 
 	// push output to termination path
 	if len(output) != 0 {

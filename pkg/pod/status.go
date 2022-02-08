@@ -17,6 +17,7 @@ limitations under the License.
 package pod
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -33,6 +34,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/termination"
 	"go.uber.org/zap"
@@ -153,6 +155,15 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 	trs := &tr.Status
 	var merr *multierror.Error
 
+	ctx := context.Background()
+	var err error
+	var client *workloadapi.Client = nil
+
+	client, err = workloadapi.New(ctx, workloadapi.WithAddr("unix:///spiffe-workload-api/spire-agent.sock"))
+	if err != nil {
+		logger.Errorf("Spire workload API not initalized due to error: %s", err.Error())
+	}
+
 	for _, s := range stepStatuses {
 		if s.State.Terminated != nil && len(s.State.Terminated.Message) != 0 {
 			msg := s.State.Terminated.Message
@@ -167,7 +178,7 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 				if tr.IsSuccessful() {
 					if len(results) >= 1 && results[0].Key != "StartedAt" {
 						logger.Info("Validating Results with spire: ", results)
-						if err := checkValidated(results); err != nil {
+						if err := checkValidated(client, results); err != nil {
 							trs.SetCondition(&apis.Condition{
 								Type:    "VERIFICATION FAILED",
 								Status:  corev1.ConditionFalse,
@@ -228,7 +239,7 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 
 }
 
-func checkValidated(rs []v1beta1.PipelineResourceResult) error {
+func checkValidated(client *workloadapi.Client, rs []v1beta1.PipelineResourceResult) error {
 	resultMap := map[string]v1beta1.PipelineResourceResult{}
 	for _, r := range rs {
 		resultMap[r.Key] = r
@@ -239,7 +250,7 @@ func checkValidated(rs []v1beta1.PipelineResourceResult) error {
 		return err
 	}
 
-	trust, err := getTrustBundle(resultMap)
+	trust, err := getTrustBundle(client)
 	if err != nil {
 		return err
 	}
@@ -252,9 +263,6 @@ func checkValidated(rs []v1beta1.PipelineResourceResult) error {
 			continue
 		}
 		if key == "SVID" {
-			continue
-		}
-		if key == "TRUST_BUNDLE" {
 			continue
 		}
 		if val.ResultType == v1beta1.InternalTektonResultType {
@@ -284,18 +292,19 @@ func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certifi
 	return cert, nil
 }
 
-func getTrustBundle(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.CertPool, error) {
-	bundle, ok := resultMap["TRUST_BUNDLE"]
-	if !ok {
-		return nil, errors.New("no Spire Trust Bundle found")
-	}
-	block, _ := pem.Decode([]byte(bundle.Value))
-	trustPool := x509.NewCertPool()
-	trust, err := x509.ParseCertificate(block.Bytes)
+func getTrustBundle(client *workloadapi.Client) (*x509.CertPool, error) {
+	x509set, err := client.FetchX509Bundles(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("invalid trust bundle: %s", err)
+		return nil, err
 	}
-	trustPool.AddCert(trust)
+	x509Bundle := x509set.Bundles()
+	if err != nil {
+		return nil, err
+	}
+	trustPool := x509.NewCertPool()
+	for _, c := range x509Bundle[0].X509Authorities() {
+		trustPool.AddCert(c)
+	}
 	return trustPool, nil
 }
 
