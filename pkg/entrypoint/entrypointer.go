@@ -34,7 +34,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
@@ -148,16 +147,8 @@ func (e Entrypointer) Go() error {
 	var client *workloadapi.Client = nil
 
 	client, err = workloadapi.New(ctx, workloadapi.WithAddr("unix:///spiffe-workload-api/spire-agent.sock"))
-	if err == nil {
-		jwt, err := client.FetchJWTSVID(ctx, jwtsvid.Params{
-			Audience: "sigstore",
-		})
-		if err != nil {
-			return err
-		}
-		logger.Infof("Obtained JWT from spire - %s", jwt.ID)
-	} else {
-		logger.Infof("Spire workload API not initalized due to error: %s", err.Error())
+	if err != nil {
+		logger.Errorf("Spire workload API not initalized due to error: %s", err.Error())
 	}
 
 	if e.Timeout != nil && *e.Timeout < time.Duration(0) {
