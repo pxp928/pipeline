@@ -24,17 +24,9 @@ import (
 	"strings"
 
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
-
-	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
-	spiffetypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 
 	"github.com/ghodss/yaml"
 	"github.com/hashicorp/go-multierror"
-	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/config"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/pod"
@@ -55,6 +47,8 @@ import (
 	"github.com/tektoncd/pipeline/pkg/reconciler/events/cloudevent"
 	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/resources"
 	"github.com/tektoncd/pipeline/pkg/reconciler/volumeclaim"
+	"github.com/tektoncd/pipeline/pkg/spire"
+	spireconfig "github.com/tektoncd/pipeline/pkg/spire/config"
 	"github.com/tektoncd/pipeline/pkg/taskrunmetrics"
 	_ "github.com/tektoncd/pipeline/pkg/taskrunmetrics/fake" // Make sure the taskrunmetrics are setup
 	"github.com/tektoncd/pipeline/pkg/workspace"
@@ -76,6 +70,7 @@ type Reconciler struct {
 	KubeClientSet     kubernetes.Interface
 	PipelineClientSet clientset.Interface
 	Images            pipeline.Images
+	SpireConfig       spireconfig.SpireConfig
 	Clock             clock.Clock
 
 	// listers index properties about resources
@@ -436,8 +431,8 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 
 	if podconvert.SidecarsReady(pod.Status) {
 		if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
-			logger.Warnf("LUMJJB registering SPIRE entry: %v/%v", pod.Namespace, pod.Name)
-			spiffeclient, err := NewSpiffeServerApiClient(ctx)
+			logger.Infof("Registering SPIRE entry: %v/%v", pod.Namespace, pod.Name)
+			spiffeclient, err := spire.NewSpiffeServerApiClient(ctx, c.SpireConfig)
 			if err != nil {
 				logger.Errorf("Failed to establish client with SPIRE server: %v", err)
 				return err
@@ -834,146 +829,4 @@ func willOverwritePodSetAffinity(taskRun *v1beta1.TaskRun) bool {
 		podTemplate = *taskRun.Spec.PodTemplate
 	}
 	return taskRun.Annotations[workspace.AnnotationAffinityAssistantName] != "" && podTemplate.Affinity != nil
-}
-
-type SpiffeServerApiClient struct {
-	serverConn   *grpc.ClientConn
-	workloadConn *workloadapi.X509Source
-	entryClient  entryv1.EntryClient
-}
-
-func NewSpiffeServerApiClient(ctx context.Context) (*SpiffeServerApiClient, error) {
-	// Create X509Source
-	// TODO(lumjjb) make sock configurable
-	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix:///spiffe-workload-api/spire-agent.sock")))
-	if err != nil {
-		return nil, fmt.Errorf("Unable to create X509Source for SPIFFE client: %w", err)
-	}
-
-	// Create connection
-	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
-	conn, err := grpc.DialContext(ctx, "spire-server.spire.svc.cluster.local:8081", grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	if err != nil {
-		source.Close()
-		return nil, fmt.Errorf("Unable to dial SPIRE server: %w", err)
-	}
-
-	return &SpiffeServerApiClient{
-		serverConn:   conn,
-		workloadConn: source,
-		entryClient:  entryv1.NewEntryClient(conn),
-	}, nil
-}
-
-func (sc *SpiffeServerApiClient) CreateNodeEntry(ctx context.Context, nodeName string) error {
-	selectors := []*spiffetypes.Selector{
-		{
-			Type: "k8s_psat",
-			// TODO: set var
-			Value: "agent_ns:spire",
-		},
-		{
-			Type:  "k8s_psat",
-			Value: "agent_node_name:" + nodeName,
-		},
-	}
-
-	// TODO(LUMJJB) take in trust domain
-	entries := []*spiffetypes.Entry{
-		{
-			SpiffeId: &spiffetypes.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        fmt.Sprintf("/tekton-node/%v", nodeName),
-			},
-			ParentId: &spiffetypes.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/spire/server",
-			},
-			Selectors: selectors,
-		},
-	}
-
-	req := entryv1.BatchCreateEntryRequest{
-		Entries: entries,
-	}
-
-	resp, err := sc.entryClient.BatchCreateEntry(ctx, &req)
-	if err != nil {
-		return err
-	}
-
-	if len(resp.Results) != 1 {
-		return fmt.Errorf("Batch create entry failed, malformed response expected 1 result")
-	}
-
-	res := resp.Results[0]
-	if codes.Code(res.Status.Code) == codes.AlreadyExists ||
-		codes.Code(res.Status.Code) == codes.OK {
-		return nil
-	}
-
-	return fmt.Errorf("Batch create entry failed, code: %v", res.Status.Code)
-
-}
-
-func (sc *SpiffeServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
-	// We can potentially add attestation on the container images as well since
-	// the information is available here.
-	selectors := []*spiffetypes.Selector{
-		{
-			Type:  "k8s",
-			Value: "pod-uid:" + string(pod.UID),
-		},
-		{
-			Type:  "k8s",
-			Value: "pod-name:" + pod.Name,
-		},
-	}
-
-	// TODO(LUMJJB) take in trust domain
-	entries := []*spiffetypes.Entry{
-		{
-			SpiffeId: &spiffetypes.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name),
-			},
-			ParentId: &spiffetypes.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        fmt.Sprintf("/tekton-node/%v", pod.Spec.NodeName),
-			},
-			Selectors: selectors,
-		},
-	}
-
-	req := entryv1.BatchCreateEntryRequest{
-		Entries: entries,
-	}
-
-	resp, err := sc.entryClient.BatchCreateEntry(ctx, &req)
-	if err != nil {
-		return err
-	}
-
-	if len(resp.Results) != 1 {
-		return fmt.Errorf("Batch create entry failed, malformed response expected 1 result")
-	}
-
-	res := resp.Results[0]
-	if codes.Code(res.Status.Code) == codes.AlreadyExists ||
-		codes.Code(res.Status.Code) == codes.OK {
-		return nil
-	}
-
-	return fmt.Errorf("Batch create entry failed, code: %v", res.Status.Code)
-}
-
-func (sc *SpiffeServerApiClient) Close() {
-	err := sc.serverConn.Close()
-	if err != nil {
-		// Log error
-	}
-	err = sc.workloadConn.Close()
-	if err != nil {
-		// Log error
-	}
 }
