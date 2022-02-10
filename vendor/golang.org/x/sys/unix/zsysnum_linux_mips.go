@@ -423,7 +423,6 @@ const (
 	SYS_FACCESSAT2                   = 4439
 	SYS_PROCESS_MADVISE              = 4440
 	SYS_EPOLL_PWAIT2                 = 4441
-<<<<<<< HEAD
 	SYS_MOUNT_SETATTR                = 4442
 	SYS_QUOTACTL_FD                  = 4443
 	SYS_LANDLOCK_CREATE_RULESET      = 4444
@@ -431,6 +430,4 @@ const (
 	SYS_LANDLOCK_RESTRICT_SELF       = 4446
 	SYS_PROCESS_MRELEASE             = 4448
 	SYS_FUTEX_WAITV                  = 4449
-=======
->>>>>>> 0c14db0fb (WIP spire.)
 )

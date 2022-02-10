@@ -19,11 +19,7 @@ import (
 	"runtime"
 )
 
-<<<<<<< HEAD
 const number = "v14.2.1"
-=======
-const number = "v14.2.0"
->>>>>>> 0c14db0fb (WIP spire.)
 
 var (
 	userAgent = fmt.Sprintf("Go/%s (%s-%s) go-autorest/%s",

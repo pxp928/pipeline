@@ -10,11 +10,8 @@
 package unix
 
 import (
-<<<<<<< HEAD
 	"fmt"
 	"runtime"
-=======
->>>>>>> 0c14db0fb (WIP spire.)
 	"unsafe"
 )
 
@@ -132,7 +129,6 @@ func Getmsg(fd int, cl []byte, data []byte) (retCl []byte, retData []byte, flags
 	}
 	return retCl, retData, flags, nil
 }
-<<<<<<< HEAD
 
 func IoctlSetIntRetInt(fd int, req uint, arg int) (int, error) {
 	return ioctlRet(fd, req, uintptr(arg))
@@ -188,5 +184,3 @@ func (s *Strioctl) SetInt(i int) {
 func IoctlSetStrioctlRetInt(fd int, req uint, s *Strioctl) (int, error) {
 	return ioctlRet(fd, req, uintptr(unsafe.Pointer(s)))
 }
-=======
->>>>>>> 0c14db0fb (WIP spire.)

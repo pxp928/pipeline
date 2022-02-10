@@ -1050,14 +1050,10 @@ const (
 	PERF_SAMPLE_PHYS_ADDR                 = 0x80000
 	PERF_SAMPLE_AUX                       = 0x100000
 	PERF_SAMPLE_CGROUP                    = 0x200000
-<<<<<<< HEAD
 	PERF_SAMPLE_DATA_PAGE_SIZE            = 0x400000
 	PERF_SAMPLE_CODE_PAGE_SIZE            = 0x800000
 	PERF_SAMPLE_WEIGHT_STRUCT             = 0x1000000
 	PERF_SAMPLE_MAX                       = 0x2000000
-=======
-	PERF_SAMPLE_MAX                       = 0x1000000
->>>>>>> 0c14db0fb (WIP spire.)
 	PERF_SAMPLE_BRANCH_USER_SHIFT         = 0x0
 	PERF_SAMPLE_BRANCH_KERNEL_SHIFT       = 0x1
 	PERF_SAMPLE_BRANCH_HV_SHIFT           = 0x2
@@ -3770,7 +3766,6 @@ const (
 	ETHTOOL_A_TUNNEL_INFO_MAX                 = 0x2
 )
 
-<<<<<<< HEAD
 type EthtoolDrvinfo struct {
 	Cmd          uint32
 	Driver       [32]byte
@@ -3786,8 +3781,6 @@ type EthtoolDrvinfo struct {
 	Regdump_len  uint32
 }
 
-=======
->>>>>>> 0c14db0fb (WIP spire.)
 type (
 	HIDRawReportDescriptor struct {
 		Size  uint32
@@ -3810,7 +3803,6 @@ const (
 	NLMSGERR_ATTR_OFFS   = 0x2
 	NLMSGERR_ATTR_COOKIE = 0x3
 )
-<<<<<<< HEAD
 
 type (
 	EraseInfo struct {
@@ -4073,5 +4065,3 @@ const (
 	NL_POLICY_TYPE_ATTR_MASK            = 0xc
 	NL_POLICY_TYPE_ATTR_MAX             = 0xc
 )
-=======
->>>>>>> 0c14db0fb (WIP spire.)
