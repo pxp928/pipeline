@@ -264,7 +264,7 @@ func signWithKey(xsvid *x509svid.SVID, value string) ([]byte, error) {
 	return s, nil
 }
 
-func getmanifest(results []v1beta1.PipelineResourceResult) string {
+func getManifest(results []v1beta1.PipelineResourceResult) string {
 	keys := []string{}
 	for _, r := range results {
 		keys = append(keys, r.Key)
@@ -295,13 +295,6 @@ func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
 			ResultType: v1beta1.TaskRunResultType,
 		})
 	}
-<<<<<<< HEAD
-	signed, err := Sign(output, client)
-	if err != nil {
-		return err
-	}
-	output = append(output, signed...)
-=======
 
 	if client != nil {
 		signed, err := Sign(output, client)
@@ -311,7 +304,7 @@ func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
 		output = append(output, signed...)
 	}
 	// get complete manifest of keys such that it can be verified
-	manifest := getmanifest(output)
+	manifest := getManifest(output)
 	if manifest != "" {
 		output = append(output, v1beta1.PipelineResourceResult{
 			Key:        "RESULT_MANIFEST",
@@ -329,7 +322,6 @@ func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
 		})
 	}
 
->>>>>>> 2b69aa9bc (changed to use spiffe-csi)
 	// push output to termination path
 	if len(output) != 0 {
 		if err := termination.WriteMessage(e.TerminationPath, output); err != nil {

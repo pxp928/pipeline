@@ -1012,11 +1012,6 @@ const (
 	HPFS_SUPER_MAGIC                            = 0xf995e849
 	HUGETLBFS_MAGIC                             = 0x958458f6
 	IBSHIFT                                     = 0x10
-<<<<<<< HEAD
-=======
-	ICMPV6_FILTER                               = 0x1
-	ICMP_FILTER                                 = 0x1
->>>>>>> 0c14db0fb (WIP spire.)
 	ICRNL                                       = 0x100
 	IFA_F_DADFAILED                             = 0x8
 	IFA_F_DEPRECATED                            = 0x20

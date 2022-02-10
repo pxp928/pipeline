@@ -287,14 +287,6 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 					Driver: "csi.spiffe.io",
 				},
 			},
-		},
-	})
-	podName := names.SimpleNameGenerator.RestrictLengthWithRandomSuffix(fmt.Sprintf("%s-pod", taskRun.Name))
-	for i := range stepContainers {
-		c := &stepContainers[i]
-		c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
-			Name:      "spire",
-			MountPath: "/run/spire/sockets/agent.sock",
 		})
 		//podName := names.SimpleNameGenerator.RestrictLengthWithRandomSuffix(fmt.Sprintf("%s-pod", taskRun.Name))
 		for i := range stepContainers {
@@ -312,15 +304,16 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 			})
 		}
 
-	// Using node affinity on taskRuns sharing PVC workspace, with an Affinity Assistant
-	// is mutually exclusive with other affinity on taskRun pods. If other
-	// affinity is wanted, that should be added on the Affinity Assistant pod unless
-	// assistant is disabled. When Affinity Assistant is disabled, an affinityAssistantName is not set.
-	var affinity *corev1.Affinity
-	if affinityAssistantName := taskRun.Annotations[workspace.AnnotationAffinityAssistantName]; affinityAssistantName != "" {
-		affinity = nodeAffinityUsingAffinityAssistant(affinityAssistantName)
-	} else {
-		affinity = podTemplate.Affinity
+		// // Using node affinity on taskRuns sharing PVC workspace, with an Affinity Assistant
+		// // is mutually exclusive with other affinity on taskRun pods. If other
+		// // affinity is wanted, that should be added on the Affinity Assistant pod unless
+		// // assistant is disabled. When Affinity Assistant is disabled, an affinityAssistantName is not set.
+		// var affinity *corev1.Affinity
+		// if affinityAssistantName := taskRun.Annotations[workspace.AnnotationAffinityAssistantName]; affinityAssistantName != "" {
+		// 	affinity = nodeAffinityUsingAffinityAssistant(affinityAssistantName)
+		// } else {
+		// 	affinity = podTemplate.Affinity
+		// }
 	}
 
 	mergedPodContainers := stepContainers
@@ -368,10 +361,9 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 			// created so that it can access colocated resources.
 			Namespace: taskRun.Namespace,
 			// Generate a unique name based on the build's name.
-			// Add a unique suffix to avoid confusion when a build
-			// is deleted and re-created with the same name.
-			// We don't use RestrictLengthWithRandomSuffix here because k8s fakes don't support it.
-			Name: podName,
+			// The name is univocally generated so that in case of
+			// stale informer cache, we never create duplicate Pods
+			Name: kmeta.ChildName(taskRun.Name, podNameSuffix),
 			// If our parent TaskRun is deleted, then we should be as well.
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(taskRun, groupVersionKind),
