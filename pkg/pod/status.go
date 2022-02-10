@@ -225,22 +225,6 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 					s.State.Terminated.ExitCode = *exitCode
 				}
 			}
-
-			taskResults, pipelineResourceResults, filteredResults := filterResultsAndResources(results)
-			if tr.IsSuccessful() {
-				trs.TaskRunResults = append(trs.TaskRunResults, taskResults...)
-				trs.ResourcesResult = append(trs.ResourcesResult, pipelineResourceResults...)
-			}
-			msg, err = createMessageFromResults(filteredResults)
-			if err != nil {
-				logger.Errorf("%v", err)
-				err = multierror.Append(merr, err)
-			} else {
-				s.State.Terminated.Message = msg
-			}
-			if time != nil {
-				s.State.Terminated.StartedAt = *time
-			}
 		}
 		trs.Steps = append(trs.Steps, v1beta1.StepState{
 			ContainerState: *s.State.DeepCopy(),

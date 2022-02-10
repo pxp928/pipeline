@@ -155,7 +155,6 @@ func FindDefaultCredentialsWithParams(ctx context.Context, params CredentialsPar
 	return nil, fmt.Errorf("google: could not find default credentials. See %v for more information.", url)
 }
 
-<<<<<<< HEAD
 // FindDefaultCredentials invokes FindDefaultCredentialsWithParams with the specified scopes.
 func FindDefaultCredentials(ctx context.Context, scopes ...string) (*Credentials, error) {
 	var params CredentialsParams
@@ -183,15 +182,6 @@ func CredentialsFromJSONWithParams(ctx context.Context, jsonData []byte, params 
 	}
 
 	// Otherwise, parse jsonData as one of the other supported credentials files.
-=======
-// CredentialsFromJSON obtains Google credentials from a JSON value. The JSON can
-// represent either a Google Developers Console client_credentials.json file (as in
-// ConfigFromJSON), a Google Developers service account key file (as in
-// JWTConfigFromJSON) or the JSON configuration file for workload identity federation
-// in non-Google cloud platforms (see
-// https://cloud.google.com/iam/docs/how-to#using-workload-identity-federation).
-func CredentialsFromJSON(ctx context.Context, jsonData []byte, scopes ...string) (*Credentials, error) {
->>>>>>> 0c14db0fb (WIP spire.)
 	var f credentialsFile
 	if err := json.Unmarshal(jsonData, &f); err != nil {
 		return nil, err

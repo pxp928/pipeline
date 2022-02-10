@@ -412,7 +412,6 @@ func Sendfile(outfd int, infd int, offset *int64, count int) (written int, err e
 	return
 }
 
-<<<<<<< HEAD
 func GetsockoptIPMreqn(fd, level, opt int) (*IPMreqn, error) {
 	var value IPMreqn
 	vallen := _Socklen(SizeofIPMreqn)
@@ -424,8 +423,6 @@ func SetsockoptIPMreqn(fd, level, opt int, mreq *IPMreqn) (err error) {
 	return setsockopt(fd, level, opt, unsafe.Pointer(mreq), unsafe.Sizeof(*mreq))
 }
 
-=======
->>>>>>> 0c14db0fb (WIP spire.)
 // GetsockoptXucred is a getsockopt wrapper that returns an Xucred struct.
 // The usual level and opt are SOL_LOCAL and LOCAL_PEERCRED, respectively.
 func GetsockoptXucred(fd, level, opt int) (*Xucred, error) {
@@ -435,7 +432,6 @@ func GetsockoptXucred(fd, level, opt int) (*Xucred, error) {
 	return x, err
 }
 
-<<<<<<< HEAD
 func SysctlKinfoProc(name string, args ...int) (*KinfoProc, error) {
 	mib, err := sysctlmib(name, args...)
 	if err != nil {
@@ -485,8 +481,6 @@ func SysctlKinfoProcSlice(name string, args ...int) ([]KinfoProc, error) {
 	return buf[:n/SizeofKinfoProc], nil
 }
 
-=======
->>>>>>> 0c14db0fb (WIP spire.)
 //sys	sendfile(infd int, outfd int, offset int64, len *int64, hdtr unsafe.Pointer, flags int) (err error)
 
 //sys	shmat(id int, addr uintptr, flag int) (ret uintptr, err error)

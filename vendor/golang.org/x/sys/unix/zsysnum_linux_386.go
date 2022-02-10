@@ -438,7 +438,6 @@ const (
 	SYS_FACCESSAT2                   = 439
 	SYS_PROCESS_MADVISE              = 440
 	SYS_EPOLL_PWAIT2                 = 441
-<<<<<<< HEAD
 	SYS_MOUNT_SETATTR                = 442
 	SYS_QUOTACTL_FD                  = 443
 	SYS_LANDLOCK_CREATE_RULESET      = 444
@@ -447,6 +446,4 @@ const (
 	SYS_MEMFD_SECRET                 = 447
 	SYS_PROCESS_MRELEASE             = 448
 	SYS_FUTEX_WAITV                  = 449
-=======
->>>>>>> 0c14db0fb (WIP spire.)
 )
