@@ -71,6 +71,9 @@ func main() {
 	if err := opts.Images.Validate(); err != nil {
 		log.Fatal(err)
 	}
+	if err := opts.SpireConfig.Validate(); err != nil {
+		log.Fatal(err)
+	}
 	if cfg.QPS == 0 {
 		cfg.QPS = 2 * rest.DefaultQPS
 	}
