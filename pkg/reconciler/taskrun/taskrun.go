@@ -48,7 +48,6 @@ import (
 	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/resources"
 	"github.com/tektoncd/pipeline/pkg/reconciler/volumeclaim"
 	"github.com/tektoncd/pipeline/pkg/spire"
-	spireconfig "github.com/tektoncd/pipeline/pkg/spire/config"
 	"github.com/tektoncd/pipeline/pkg/taskrunmetrics"
 	_ "github.com/tektoncd/pipeline/pkg/taskrunmetrics/fake" // Make sure the taskrunmetrics are setup
 	"github.com/tektoncd/pipeline/pkg/workspace"
@@ -70,7 +69,7 @@ type Reconciler struct {
 	KubeClientSet     kubernetes.Interface
 	PipelineClientSet clientset.Interface
 	Images            pipeline.Images
-	SpireConfig       spireconfig.SpireConfig
+	SpireClient       *spire.SpireServerApiClient
 	Clock             clock.Clock
 
 	// listers index properties about resources
@@ -438,16 +437,11 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 		if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
 
 			logger.Infof("Registering SPIRE entry: %v/%v", pod.Namespace, pod.Name)
-			spiffeclient, err := spire.NewSpiffeServerApiClient(ctx, c.SpireConfig)
-			if err != nil {
-				logger.Errorf("Failed to establish client with SPIRE server: %v", err)
-				return err
-			}
-			if err = spiffeclient.CreateNodeEntry(ctx, pod.Spec.NodeName); err != nil {
+			if err = c.SpireClient.CreateNodeEntry(ctx, pod.Spec.NodeName); err != nil {
 				logger.Errorf("Failed to create node SPIFFE entry for node %v: %v", pod.Spec.NodeName, err)
 				return err
 			}
-			if err = spiffeclient.CreateWorkloadEntry(ctx, tr, pod); err != nil {
+			if err = c.SpireClient.CreateWorkloadEntry(ctx, tr, pod); err != nil {
 				logger.Errorf("Failed to create workload SPIFFE entry for taskrun %v: %v", tr.Name, err)
 				return err
 			}

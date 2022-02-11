@@ -34,37 +34,59 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-type SpiffeServerApiClient struct {
+type SpireServerApiClient struct {
+	config       spireconfig.SpireConfig
 	serverConn   *grpc.ClientConn
 	workloadConn *workloadapi.X509Source
 	entryClient  entryv1.EntryClient
-	config       spireconfig.SpireConfig
 }
 
-func NewSpiffeServerApiClient(ctx context.Context, c spireconfig.SpireConfig) (*SpiffeServerApiClient, error) {
-	// Create X509Source
-	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+c.SocketPath)))
-	if err != nil {
-		return nil, fmt.Errorf("Unable to create X509Source for SPIFFE client: %w", err)
+func (sc *SpireServerApiClient) checkClient(ctx context.Context) error {
+	if sc.entryClient == nil || sc.workloadConn == nil || sc.serverConn == nil {
+		return sc.dial(ctx)
 	}
-
-	// Create connection
-	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
-	conn, err := grpc.DialContext(ctx, c.ServerAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	if err != nil {
-		source.Close()
-		return nil, fmt.Errorf("Unable to dial SPIRE server: %w", err)
-	}
-
-	return &SpiffeServerApiClient{
-		serverConn:   conn,
-		workloadConn: source,
-		entryClient:  entryv1.NewEntryClient(conn),
-		config:       c,
-	}, nil
+	return nil
 }
 
-func (sc *SpiffeServerApiClient) CreateNodeEntry(ctx context.Context, nodeName string) error {
+func (sc *SpireServerApiClient) dial(ctx context.Context) error {
+	if sc.workloadConn == nil {
+		// Create X509Source
+		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+sc.config.SocketPath)))
+		if err != nil {
+			return fmt.Errorf("Unable to create X509Source for SPIFFE client: %w", err)
+		}
+		sc.workloadConn = source
+	}
+
+	if sc.serverConn == nil {
+		// Create connection
+		tlsConfig := tlsconfig.MTLSClientConfig(sc.workloadConn, sc.workloadConn, tlsconfig.AuthorizeAny())
+		conn, err := grpc.DialContext(ctx, sc.config.ServerAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		if err != nil {
+			sc.workloadConn.Close()
+			sc.workloadConn = nil
+			return fmt.Errorf("Unable to dial SPIRE server: %w", err)
+		}
+		sc.serverConn = conn
+	}
+
+	sc.entryClient = entryv1.NewEntryClient(sc.serverConn)
+
+	return nil
+}
+
+func NewSpireServerApiClient(c spireconfig.SpireConfig) *SpireServerApiClient {
+	return &SpireServerApiClient{
+		config: c,
+	}
+}
+
+func (sc *SpireServerApiClient) CreateNodeEntry(ctx context.Context, nodeName string) error {
+	err := sc.checkClient(ctx)
+	if err != nil {
+		return err
+	}
+
 	selectors := []*spiffetypes.Selector{
 		{
 			Type:  "k8s_psat",
@@ -112,7 +134,12 @@ func (sc *SpiffeServerApiClient) CreateNodeEntry(ctx context.Context, nodeName s
 	return fmt.Errorf("Batch create entry failed, code: %v", res.Status.Code)
 }
 
-func (sc *SpiffeServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
+func (sc *SpireServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
+	err := sc.checkClient(ctx)
+	if err != nil {
+		return err
+	}
+
 	// Note: We can potentially add attestation on the container images as well since
 	// the information is available here.
 	selectors := []*spiffetypes.Selector{
@@ -162,7 +189,7 @@ func (sc *SpiffeServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1
 	return fmt.Errorf("Batch create entry failed, code: %v", res.Status.Code)
 }
 
-func (sc *SpiffeServerApiClient) Close() {
+func (sc *SpireServerApiClient) Close() {
 	err := sc.serverConn.Close()
 	if err != nil {
 		// Log error
