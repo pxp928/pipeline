@@ -431,7 +431,12 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	}
 
 	if podconvert.SidecarsReady(pod.Status) {
+		if err := c.metrics.RecordPodLatency(pod, tr); err != nil {
+			logger.Warnf("Failed to log the metrics : %v", err)
+		}
+
 		if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
+
 			logger.Infof("Registering SPIRE entry: %v/%v", pod.Namespace, pod.Name)
 			spiffeclient, err := spire.NewSpiffeServerApiClient(ctx, c.SpireConfig)
 			if err != nil {
@@ -453,9 +458,6 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 			return err
 		}
 
-		if err := c.metrics.RecordPodLatency(pod, tr); err != nil {
-			logger.Warnf("Failed to log the metrics : %v", err)
-		}
 	}
 
 	// Convert the Pod's status to the equivalent TaskRun Status.
