@@ -81,12 +81,7 @@ func NewSpireServerApiClient(c spireconfig.SpireConfig) *SpireServerApiClient {
 	}
 }
 
-func (sc *SpireServerApiClient) CreateNodeEntry(ctx context.Context, nodeName string) error {
-	err := sc.checkClient(ctx)
-	if err != nil {
-		return err
-	}
-
+func (sc *SpireServerApiClient) NodeEntry(nodeName string) *spiffetypes.Entry {
 	selectors := []*spiffetypes.Selector{
 		{
 			Type:  "k8s_psat",
@@ -98,48 +93,20 @@ func (sc *SpireServerApiClient) CreateNodeEntry(ctx context.Context, nodeName st
 		},
 	}
 
-	entries := []*spiffetypes.Entry{
-		{
-			SpiffeId: &spiffetypes.SPIFFEID{
-				TrustDomain: sc.config.TrustDomain,
-				Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, nodeName),
-			},
-			ParentId: &spiffetypes.SPIFFEID{
-				TrustDomain: sc.config.TrustDomain,
-				Path:        "/spire/server",
-			},
-			Selectors: selectors,
+	return &spiffetypes.Entry{
+		SpiffeId: &spiffetypes.SPIFFEID{
+			TrustDomain: sc.config.TrustDomain,
+			Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, nodeName),
 		},
+		ParentId: &spiffetypes.SPIFFEID{
+			TrustDomain: sc.config.TrustDomain,
+			Path:        "/spire/server",
+		},
+		Selectors: selectors,
 	}
-
-	req := entryv1.BatchCreateEntryRequest{
-		Entries: entries,
-	}
-
-	resp, err := sc.entryClient.BatchCreateEntry(ctx, &req)
-	if err != nil {
-		return err
-	}
-
-	if len(resp.Results) != 1 {
-		return fmt.Errorf("Batch create entry failed, malformed response expected 1 result")
-	}
-
-	res := resp.Results[0]
-	if codes.Code(res.Status.Code) == codes.AlreadyExists ||
-		codes.Code(res.Status.Code) == codes.OK {
-		return nil
-	}
-
-	return fmt.Errorf("Batch create entry failed, code: %v", res.Status.Code)
 }
 
-func (sc *SpireServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
-	err := sc.checkClient(ctx)
-	if err != nil {
-		return err
-	}
-
+func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod) *spiffetypes.Entry {
 	// Note: We can potentially add attestation on the container images as well since
 	// the information is available here.
 	selectors := []*spiffetypes.Selector{
@@ -153,18 +120,27 @@ func (sc *SpireServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1b
 		},
 	}
 
-	entries := []*spiffetypes.Entry{
-		{
-			SpiffeId: &spiffetypes.SPIFFEID{
-				TrustDomain: sc.config.TrustDomain,
-				Path:        fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name),
-			},
-			ParentId: &spiffetypes.SPIFFEID{
-				TrustDomain: sc.config.TrustDomain,
-				Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, pod.Spec.NodeName),
-			},
-			Selectors: selectors,
+	return &spiffetypes.Entry{
+		SpiffeId: &spiffetypes.SPIFFEID{
+			TrustDomain: sc.config.TrustDomain,
+			Path:        fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name),
 		},
+		ParentId: &spiffetypes.SPIFFEID{
+			TrustDomain: sc.config.TrustDomain,
+			Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, pod.Spec.NodeName),
+		},
+		Selectors: selectors,
+	}
+}
+
+func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
+	err := sc.checkClient(ctx)
+	if err != nil {
+		return err
+	}
+	entries := []*spiffetypes.Entry{
+		sc.NodeEntry(pod.Spec.NodeName),
+		sc.WorkloadEntry(tr, pod),
 	}
 
 	req := entryv1.BatchCreateEntryRequest{
@@ -176,17 +152,25 @@ func (sc *SpireServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1b
 		return err
 	}
 
-	if len(resp.Results) != 1 {
-		return fmt.Errorf("Batch create entry failed, malformed response expected 1 result")
+	if len(resp.Results) != len(entries) {
+		return fmt.Errorf("Batch create entry failed, malformed response expected %v result", len(entries))
 	}
 
-	res := resp.Results[0]
-	if codes.Code(res.Status.Code) == codes.AlreadyExists ||
-		codes.Code(res.Status.Code) == codes.OK {
-		return nil
+	var errPaths []string
+	var errCodes []int32
+
+	for _, r := range resp.Results {
+		if codes.Code(r.Status.Code) != codes.AlreadyExists &&
+			codes.Code(r.Status.Code) != codes.OK {
+			errPaths = append(errPaths, r.Entry.SpiffeId.Path)
+			errCodes = append(errCodes, r.Status.Code)
+		}
 	}
 
-	return fmt.Errorf("Batch create entry failed, code: %v", res.Status.Code)
+	if len(errPaths) != 0 {
+		return fmt.Errorf("Batch create entry failed for entries %+v with codes %+v", errPaths, errCodes)
+	}
+	return nil
 }
 
 func (sc *SpireServerApiClient) Close() {

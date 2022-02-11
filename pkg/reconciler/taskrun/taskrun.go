@@ -436,12 +436,7 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 
 		if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
 
-			logger.Infof("Registering SPIRE entry: %v/%v", pod.Namespace, pod.Name)
-			if err = c.SpireClient.CreateNodeEntry(ctx, pod.Spec.NodeName); err != nil {
-				logger.Errorf("Failed to create node SPIFFE entry for node %v: %v", pod.Spec.NodeName, err)
-				return err
-			}
-			if err = c.SpireClient.CreateWorkloadEntry(ctx, tr, pod); err != nil {
+			if err = c.SpireClient.CreateEntries(ctx, tr, pod); err != nil {
 				logger.Errorf("Failed to create workload SPIFFE entry for taskrun %v: %v", tr.Name, err)
 				return err
 			}
