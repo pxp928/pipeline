@@ -106,7 +106,7 @@ func (sc *SpireServerApiClient) NodeEntry(nodeName string) *spiffetypes.Entry {
 	}
 }
 
-func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod) *spiffetypes.Entry {
+func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int32) *spiffetypes.Entry {
 	// Note: We can potentially add attestation on the container images as well since
 	// the information is available here.
 	selectors := []*spiffetypes.Selector{
@@ -130,17 +130,18 @@ func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.P
 			Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, pod.Spec.NodeName),
 		},
 		Selectors: selectors,
+		Ttl:       ttl,
 	}
 }
 
-func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
+func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
 	}
 	entries := []*spiffetypes.Entry{
 		sc.NodeEntry(pod.Spec.NodeName),
-		sc.WorkloadEntry(tr, pod),
+		sc.WorkloadEntry(tr, pod, int32(ttl)),
 	}
 
 	req := entryv1.BatchCreateEntryRequest{
