@@ -253,8 +253,10 @@ func checkValidated(client *workloadapi.Client, rs []v1beta1.PipelineResourceRes
 	if err != nil {
 		return err
 	}
+
+	err = verifyManifest(resultMap)
 	if err != nil {
-		return fmt.Errorf("invalid SVID: %s", err)
+		return err
 	}
 
 	for key, val := range resultMap {
@@ -314,6 +316,21 @@ func verifyCertificateTrust(cert *x509.Certificate, rootCertPool *x509.CertPool)
 	chains, err := cert.Verify(verifyOptions)
 	if len(chains) == 0 || err != nil {
 		return fmt.Errorf("cert cannot be verified by provided roots")
+	}
+	return nil
+}
+
+func verifyManifest(results map[string]v1beta1.PipelineResourceResult) error {
+	manifest, ok := results["RESULT_MANIFEST"]
+	if !ok {
+		return errors.New("no manifest found in results")
+	}
+	s := strings.Split(manifest.Value, ",")
+	for _, key := range s {
+		_, found := results[key]
+		if !found {
+			return fmt.Errorf("no result found for %s but is part of the manifest %s", key, manifest.Value)
+		}
 	}
 	return nil
 }
