@@ -17,13 +17,24 @@ limitations under the License.
 package pod
 
 import (
+	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/termination"
 	"go.uber.org/zap"
@@ -144,6 +155,15 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 	trs := &tr.Status
 	var merr *multierror.Error
 
+	ctx := context.Background()
+	var err error
+	var client *workloadapi.Client = nil
+
+	client, err = workloadapi.New(ctx, workloadapi.WithAddr("unix:///spiffe-workload-api/spire-agent.sock"))
+	if err != nil {
+		logger.Errorf("Spire workload API not initalized due to error: %s", err.Error())
+	}
+
 	for _, s := range stepStatuses {
 		if s.State.Terminated != nil && len(s.State.Terminated.Message) != 0 {
 			msg := s.State.Terminated.Message
@@ -152,7 +172,30 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 			if err != nil {
 				logger.Errorf("termination message could not be parsed as JSON: %v", err)
 				merr = multierror.Append(merr, err)
+
 			} else {
+				logger.Info("Results: ", results)
+				if tr.IsSuccessful() {
+					if len(results) >= 1 && results[0].Key != "StartedAt" {
+						logger.Info("Validating Results with spire: ", results)
+						if err := checkValidated(client, results); err != nil {
+							trs.SetCondition(&apis.Condition{
+								Type:    "VERIFICATION FAILED",
+								Status:  corev1.ConditionFalse,
+								Reason:  "signatures verification failure",
+								Message: err.Error(),
+							})
+						} else {
+							trs.SetCondition(&apis.Condition{
+								Type:    "VERIFIED",
+								Status:  corev1.ConditionTrue,
+								Reason:  "checked signatures",
+								Message: "Spire verified signature",
+							})
+						}
+					}
+				}
+
 				time, err := extractStartedAtTimeFromResults(results)
 				if err != nil {
 					logger.Errorf("error setting the start time of step %q in taskrun %q: %v", s.Name, tr.Name, err)
@@ -193,6 +236,132 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 
 	return merr
 
+}
+
+func checkValidated(client *workloadapi.Client, rs []v1beta1.PipelineResourceResult) error {
+	resultMap := map[string]v1beta1.PipelineResourceResult{}
+	for _, r := range rs {
+		resultMap[r.Key] = r
+	}
+
+	cert, err := getSVID(resultMap)
+	if err != nil {
+		return err
+	}
+
+	trust, err := getTrustBundle(client)
+	if err != nil {
+		return err
+	}
+
+	err = verifyManifest(resultMap)
+	if err != nil {
+		return err
+	}
+
+	for key, val := range resultMap {
+		if strings.HasSuffix(key, ".sig") {
+			continue
+		}
+		if key == "SVID" {
+			continue
+		}
+		if val.ResultType == v1beta1.InternalTektonResultType {
+			continue
+		}
+		if err := verifyOne(cert.PublicKey, key, resultMap); err != nil {
+			return err
+		}
+		if err := verifyCertificateTrust(cert, trust); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certificate, error) {
+	svid, ok := resultMap["SVID"]
+	if !ok {
+		return nil, errors.New("no SVID found")
+	}
+	block, _ := pem.Decode([]byte(svid.Value))
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SVID: %s", err)
+	}
+	return cert, nil
+}
+
+func getTrustBundle(client *workloadapi.Client) (*x509.CertPool, error) {
+	x509set, err := client.FetchX509Bundles(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	x509Bundle := x509set.Bundles()
+	if err != nil {
+		return nil, err
+	}
+	trustPool := x509.NewCertPool()
+	for _, c := range x509Bundle[0].X509Authorities() {
+		trustPool.AddCert(c)
+	}
+	return trustPool, nil
+}
+
+func verifyCertificateTrust(cert *x509.Certificate, rootCertPool *x509.CertPool) error {
+	verifyOptions := x509.VerifyOptions{
+		Roots: rootCertPool,
+	}
+	chains, err := cert.Verify(verifyOptions)
+	if len(chains) == 0 || err != nil {
+		return fmt.Errorf("cert cannot be verified by provided roots")
+	}
+	return nil
+}
+
+func verifyManifest(results map[string]v1beta1.PipelineResourceResult) error {
+	manifest, ok := results["RESULT_MANIFEST"]
+	if !ok {
+		return errors.New("no manifest found in results")
+	}
+	s := strings.Split(manifest.Value, ",")
+	for _, key := range s {
+		_, found := results[key]
+		if !found {
+			return fmt.Errorf("no result found for %s but is part of the manifest %s", key, manifest.Value)
+		}
+	}
+	return nil
+}
+
+func verifyOne(pub interface{}, key string, results map[string]v1beta1.PipelineResourceResult) error {
+	signature, ok := results[key+".sig"]
+	if !ok {
+		return fmt.Errorf("no signature found for %s", key)
+	}
+	b, err := base64.StdEncoding.DecodeString(signature.Value)
+	if err != nil {
+		return fmt.Errorf("invalid signature: %s", err)
+	}
+	h := sha256.Sum256([]byte(results[key].Value))
+	// Check val against sig
+	switch t := pub.(type) {
+	case *ecdsa.PublicKey:
+		if !ecdsa.VerifyASN1(t, h[:], b) {
+			return errors.New("invalid signature")
+		}
+		return nil
+	case *rsa.PublicKey:
+		return rsa.VerifyPKCS1v15(t, crypto.SHA256, h[:], b)
+	case ed25519.PublicKey:
+		if !ed25519.Verify(t, []byte(results[key].Value), b) {
+			return errors.New("invalid signature")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported key type: %s", t)
+	}
 }
 
 func setTaskRunStatusBasedOnSidecarStatus(sidecarStatuses []corev1.ContainerStatus, trs *v1beta1.TaskRunStatus) {
