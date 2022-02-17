@@ -46,6 +46,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/reconciler/events/cloudevent"
 	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/resources"
 	"github.com/tektoncd/pipeline/pkg/reconciler/volumeclaim"
+	"github.com/tektoncd/pipeline/pkg/spire"
 	"github.com/tektoncd/pipeline/pkg/taskrunmetrics"
 	_ "github.com/tektoncd/pipeline/pkg/taskrunmetrics/fake" // Make sure the taskrunmetrics are setup
 	"github.com/tektoncd/pipeline/pkg/workspace"
@@ -67,6 +68,7 @@ type Reconciler struct {
 	KubeClientSet     kubernetes.Interface
 	PipelineClientSet clientset.Interface
 	Images            pipeline.Images
+	SpireClient       *spire.SpireServerApiClient
 	Clock             clock.Clock
 
 	// listers index properties about resources
@@ -440,12 +442,24 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	}
 
 	if podconvert.SidecarsReady(pod.Status) {
-		if err := podconvert.UpdateReady(ctx, c.KubeClientSet, *pod); err != nil {
-			return err
-		}
 		if err := c.metrics.RecordPodLatency(pod, tr); err != nil {
 			logger.Warnf("Failed to log the metrics : %v", err)
 		}
+
+		if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
+			// TTL is in seconds
+			ttl := config.FromContextOrDefaults(ctx).Defaults.DefaultTimeoutMinutes * 60
+			if err = c.SpireClient.CreateEntries(ctx, tr, pod, ttl); err != nil {
+				logger.Errorf("Failed to create workload SPIFFE entry for taskrun %v: %v", tr.Name, err)
+				return err
+			}
+			logger.Infof("Created SPIFFE workload entry for %v/%v", tr.Namespace, tr.Name)
+		}
+
+		if err := podconvert.UpdateReady(ctx, c.KubeClientSet, *pod); err != nil {
+			return err
+		}
+
 	}
 
 	// Convert the Pod's status to the equivalent TaskRun Status.

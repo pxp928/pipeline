@@ -30,6 +30,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/pod"
 	cloudeventclient "github.com/tektoncd/pipeline/pkg/reconciler/events/cloudevent"
 	"github.com/tektoncd/pipeline/pkg/reconciler/volumeclaim"
+	"github.com/tektoncd/pipeline/pkg/spire"
 	"github.com/tektoncd/pipeline/pkg/taskrunmetrics"
 	"k8s.io/client-go/tools/cache"
 	kubeclient "knative.dev/pkg/client/injection/kube/client"
@@ -62,6 +63,7 @@ func NewController(opts *pipeline.Options, clock clock.Clock) func(context.Conte
 			KubeClientSet:     kubeclientset,
 			PipelineClientSet: pipelineclientset,
 			Images:            opts.Images,
+			SpireClient:       spire.NewSpireServerApiClient(opts.SpireConfig),
 			Clock:             clock,
 			taskRunLister:     taskRunInformer.Lister(),
 			resourceLister:    resourceInformer.Lister(),
