@@ -48,6 +48,8 @@ const (
 	DefaultEnableAPIFields = StableAPIFields
 	// DefaultSendCloudEventsForRuns is the default value for "send-cloudevents-for-runs".
 	DefaultSendCloudEventsForRuns = false
+	// DefaultEnableSpire is the default value for "enable-sire".
+	DefaultEnableSpire = false
 
 	disableAffinityAssistantKey         = "disable-affinity-assistant"
 	disableCredsInitKey                 = "disable-creds-init"
@@ -58,6 +60,7 @@ const (
 	enableAPIFields                     = "enable-api-fields"
 	scopeWhenExpressionsToTask          = "scope-when-expressions-to-task"
 	sendCloudEventsForRuns              = "send-cloudevents-for-runs"
+	enableSpire                         = "enable-spire"
 )
 
 // FeatureFlags holds the features configurations
@@ -72,6 +75,7 @@ type FeatureFlags struct {
 	ScopeWhenExpressionsToTask       bool
 	EnableAPIFields                  string
 	SendCloudEventsForRuns           bool
+	EnableSpire                      bool
 }
 
 // GetFeatureFlagsConfigName returns the name of the configmap containing all
@@ -118,6 +122,9 @@ func NewFeatureFlagsFromMap(cfgMap map[string]string) (*FeatureFlags, error) {
 		return nil, err
 	}
 	if err := setFeature(sendCloudEventsForRuns, DefaultSendCloudEventsForRuns, &tc.SendCloudEventsForRuns); err != nil {
+		return nil, err
+	}
+	if err := setFeature(enableSpire, DefaultEnableSpire, &tc.EnableSpire); err != nil {
 		return nil, err
 	}
 
