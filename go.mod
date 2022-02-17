@@ -21,10 +21,9 @@ require (
 	go.opencensus.io v0.23.0
 	go.uber.org/zap v1.19.1
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0
-	google.golang.org/grpc v1.43.0
+	google.golang.org/grpc v1.44.0
 	k8s.io/api v0.22.5
 	k8s.io/apimachinery v0.22.5
 	k8s.io/client-go v0.22.5
@@ -44,6 +43,5 @@ require (
 	github.com/google/go-containerregistry/pkg/authn/kubernetes v0.0.0-20220120123041-d22850aca581 // indirect
 	github.com/spiffe/spire-api-sdk v1.2.0
 	go.uber.org/multierr v1.7.0 // indirect
-	golang.org/x/net v0.0.0-20220114011407-0dd24b26b47d // indirect
 	k8s.io/utils v0.0.0-20211208161948-7d6a63dca704 // indirect
 )
