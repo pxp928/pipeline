@@ -34,37 +34,54 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-type SpiffeServerApiClient struct {
+type SpireServerApiClient struct {
+	config       spireconfig.SpireConfig
 	serverConn   *grpc.ClientConn
 	workloadConn *workloadapi.X509Source
 	entryClient  entryv1.EntryClient
-	config       spireconfig.SpireConfig
 }
 
-func NewSpiffeServerApiClient(ctx context.Context, c spireconfig.SpireConfig) (*SpiffeServerApiClient, error) {
-	// Create X509Source
-	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+c.SocketPath)))
-	if err != nil {
-		return nil, fmt.Errorf("Unable to create X509Source for SPIFFE client: %w", err)
+func (sc *SpireServerApiClient) checkClient(ctx context.Context) error {
+	if sc.entryClient == nil || sc.workloadConn == nil || sc.serverConn == nil {
+		return sc.dial(ctx)
 	}
-
-	// Create connection
-	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
-	conn, err := grpc.DialContext(ctx, c.ServerAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	if err != nil {
-		source.Close()
-		return nil, fmt.Errorf("Unable to dial SPIRE server: %w", err)
-	}
-
-	return &SpiffeServerApiClient{
-		serverConn:   conn,
-		workloadConn: source,
-		entryClient:  entryv1.NewEntryClient(conn),
-		config:       c,
-	}, nil
+	return nil
 }
 
-func (sc *SpiffeServerApiClient) CreateNodeEntry(ctx context.Context, nodeName string) error {
+func (sc *SpireServerApiClient) dial(ctx context.Context) error {
+	if sc.workloadConn == nil {
+		// Create X509Source
+		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+sc.config.SocketPath)))
+		if err != nil {
+			return fmt.Errorf("Unable to create X509Source for SPIFFE client: %w", err)
+		}
+		sc.workloadConn = source
+	}
+
+	if sc.serverConn == nil {
+		// Create connection
+		tlsConfig := tlsconfig.MTLSClientConfig(sc.workloadConn, sc.workloadConn, tlsconfig.AuthorizeAny())
+		conn, err := grpc.DialContext(ctx, sc.config.ServerAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		if err != nil {
+			sc.workloadConn.Close()
+			sc.workloadConn = nil
+			return fmt.Errorf("Unable to dial SPIRE server: %w", err)
+		}
+		sc.serverConn = conn
+	}
+
+	sc.entryClient = entryv1.NewEntryClient(sc.serverConn)
+
+	return nil
+}
+
+func NewSpireServerApiClient(c spireconfig.SpireConfig) *SpireServerApiClient {
+	return &SpireServerApiClient{
+		config: c,
+	}
+}
+
+func (sc *SpireServerApiClient) NodeEntry(nodeName string) *spiffetypes.Entry {
 	selectors := []*spiffetypes.Selector{
 		{
 			Type:  "k8s_psat",
@@ -76,43 +93,20 @@ func (sc *SpiffeServerApiClient) CreateNodeEntry(ctx context.Context, nodeName s
 		},
 	}
 
-	entries := []*spiffetypes.Entry{
-		{
-			SpiffeId: &spiffetypes.SPIFFEID{
-				TrustDomain: sc.config.TrustDomain,
-				Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, nodeName),
-			},
-			ParentId: &spiffetypes.SPIFFEID{
-				TrustDomain: sc.config.TrustDomain,
-				Path:        "/spire/server",
-			},
-			Selectors: selectors,
+	return &spiffetypes.Entry{
+		SpiffeId: &spiffetypes.SPIFFEID{
+			TrustDomain: sc.config.TrustDomain,
+			Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, nodeName),
 		},
+		ParentId: &spiffetypes.SPIFFEID{
+			TrustDomain: sc.config.TrustDomain,
+			Path:        "/spire/server",
+		},
+		Selectors: selectors,
 	}
-
-	req := entryv1.BatchCreateEntryRequest{
-		Entries: entries,
-	}
-
-	resp, err := sc.entryClient.BatchCreateEntry(ctx, &req)
-	if err != nil {
-		return err
-	}
-
-	if len(resp.Results) != 1 {
-		return fmt.Errorf("Batch create entry failed, malformed response expected 1 result")
-	}
-
-	res := resp.Results[0]
-	if codes.Code(res.Status.Code) == codes.AlreadyExists ||
-		codes.Code(res.Status.Code) == codes.OK {
-		return nil
-	}
-
-	return fmt.Errorf("Batch create entry failed, code: %v", res.Status.Code)
 }
 
-func (sc *SpiffeServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
+func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int32) *spiffetypes.Entry {
 	// Note: We can potentially add attestation on the container images as well since
 	// the information is available here.
 	selectors := []*spiffetypes.Selector{
@@ -126,18 +120,28 @@ func (sc *SpiffeServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1
 		},
 	}
 
-	entries := []*spiffetypes.Entry{
-		{
-			SpiffeId: &spiffetypes.SPIFFEID{
-				TrustDomain: sc.config.TrustDomain,
-				Path:        fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name),
-			},
-			ParentId: &spiffetypes.SPIFFEID{
-				TrustDomain: sc.config.TrustDomain,
-				Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, pod.Spec.NodeName),
-			},
-			Selectors: selectors,
+	return &spiffetypes.Entry{
+		SpiffeId: &spiffetypes.SPIFFEID{
+			TrustDomain: sc.config.TrustDomain,
+			Path:        fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name),
 		},
+		ParentId: &spiffetypes.SPIFFEID{
+			TrustDomain: sc.config.TrustDomain,
+			Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, pod.Spec.NodeName),
+		},
+		Selectors: selectors,
+		Ttl:       ttl,
+	}
+}
+
+func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
+	err := sc.checkClient(ctx)
+	if err != nil {
+		return err
+	}
+	entries := []*spiffetypes.Entry{
+		sc.NodeEntry(pod.Spec.NodeName),
+		sc.WorkloadEntry(tr, pod, int32(ttl)),
 	}
 
 	req := entryv1.BatchCreateEntryRequest{
@@ -149,20 +153,28 @@ func (sc *SpiffeServerApiClient) CreateWorkloadEntry(ctx context.Context, tr *v1
 		return err
 	}
 
-	if len(resp.Results) != 1 {
-		return fmt.Errorf("Batch create entry failed, malformed response expected 1 result")
+	if len(resp.Results) != len(entries) {
+		return fmt.Errorf("Batch create entry failed, malformed response expected %v result", len(entries))
 	}
 
-	res := resp.Results[0]
-	if codes.Code(res.Status.Code) == codes.AlreadyExists ||
-		codes.Code(res.Status.Code) == codes.OK {
-		return nil
+	var errPaths []string
+	var errCodes []int32
+
+	for _, r := range resp.Results {
+		if codes.Code(r.Status.Code) != codes.AlreadyExists &&
+			codes.Code(r.Status.Code) != codes.OK {
+			errPaths = append(errPaths, r.Entry.SpiffeId.Path)
+			errCodes = append(errCodes, r.Status.Code)
+		}
 	}
 
-	return fmt.Errorf("Batch create entry failed, code: %v", res.Status.Code)
+	if len(errPaths) != 0 {
+		return fmt.Errorf("Batch create entry failed for entries %+v with codes %+v", errPaths, errCodes)
+	}
+	return nil
 }
 
-func (sc *SpiffeServerApiClient) Close() {
+func (sc *SpireServerApiClient) Close() {
 	err := sc.serverConn.Close()
 	if err != nil {
 		// Log error
