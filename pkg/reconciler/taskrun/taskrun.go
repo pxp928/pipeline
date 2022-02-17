@@ -447,7 +447,7 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 		}
 
 		if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
-			// TTL is in seconds
+			// TTL for the entry is in seconds
 			ttl := config.FromContextOrDefaults(ctx).Defaults.DefaultTimeoutMinutes * 60
 			if err = c.SpireClient.CreateEntries(ctx, tr, pod, ttl); err != nil {
 				logger.Errorf("Failed to create workload SPIFFE entry for taskrun %v: %v", tr.Name, err)

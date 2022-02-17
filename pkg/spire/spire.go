@@ -19,6 +19,7 @@ package spire
 import (
 	"context"
 	"fmt"
+	"time"
 
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	spiffetypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -106,7 +107,7 @@ func (sc *SpireServerApiClient) NodeEntry(nodeName string) *spiffetypes.Entry {
 	}
 }
 
-func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int32) *spiffetypes.Entry {
+func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod, expiry int64) *spiffetypes.Entry {
 	// Note: We can potentially add attestation on the container images as well since
 	// the information is available here.
 	selectors := []*spiffetypes.Selector{
@@ -130,18 +131,21 @@ func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.P
 			Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, pod.Spec.NodeName),
 		},
 		Selectors: selectors,
-		Ttl:       ttl,
+		ExpiresAt: expiry,
 	}
 }
 
+// ttl is the TTL for the SPIRE entry in seconds, not the SVID TTL
 func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
 	}
+
+	expiryTime := time.Now().Unix() + int64(ttl)
 	entries := []*spiffetypes.Entry{
 		sc.NodeEntry(pod.Spec.NodeName),
-		sc.WorkloadEntry(tr, pod, int32(ttl)),
+		sc.WorkloadEntry(tr, pod, expiryTime),
 	}
 
 	req := entryv1.BatchCreateEntryRequest{
