@@ -21,6 +21,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -178,7 +179,7 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 				if tr.IsSuccessful() {
 					if len(results) >= 1 && results[0].Key != "StartedAt" {
 						logger.Info("Validating Results with spire: ", results)
-						if err := checkValidated(client, results); err != nil {
+						if err := checkValidated(client, results, tr); err != nil {
 							trs.SetCondition(&apis.Condition{
 								Type:    "VERIFICATION FAILED",
 								Status:  corev1.ConditionFalse,
@@ -186,12 +187,19 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 								Message: err.Error(),
 							})
 						} else {
-							trs.SetCondition(&apis.Condition{
+							verified := &apis.Condition{
 								Type:    "VERIFIED",
 								Status:  corev1.ConditionTrue,
 								Reason:  "checked signatures",
 								Message: "Spire verified signature",
-							})
+							}
+							trs.SetCondition(verified)
+
+							err = appendStatusConditionAnnotation(ctx, verified, tr)
+							if err != nil {
+								logger.Errorf("error adding status annotation with SVID: %v", err)
+							}
+
 						}
 					}
 				}
@@ -233,12 +241,44 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 			ImageID:        s.ImageID,
 		})
 	}
-
 	return merr
 
 }
 
-func checkValidated(client *workloadapi.Client, rs []v1beta1.PipelineResourceResult) error {
+func appendStatusConditionAnnotation(ctx context.Context, condition *apis.Condition, tr *v1beta1.TaskRun) error {
+	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix:///spiffe-workload-api/spire-agent.sock"))
+	if err != nil {
+		return fmt.Errorf("spire workload API not initalized due to error: %s", err.Error())
+	}
+	v, err := json.Marshal(condition)
+	if err != nil {
+		return err
+	}
+	dgst := sha256.Sum256([]byte(v))
+
+	xsvid, err := client.FetchX509SVID(context.Background())
+	if err != nil {
+		fmt.Errorf("failed to fetch controller SVID: %s", err)
+	}
+
+	s, err := xsvid.PrivateKey.Sign(rand.Reader, dgst[:], crypto.SHA256)
+	if err != nil {
+		return err
+	}
+
+	p := pem.EncodeToMemory(&pem.Block{
+		Bytes: xsvid.Certificates[0].Raw,
+		Type:  "CERTIFICATE",
+	})
+
+	annotations := map[string]string{}
+	annotations["pipeline.tekton.dev/SVID"] = string(p)
+	annotations["pipeline.tekton.dev/status"] = base64.StdEncoding.EncodeToString(s)
+	tr.SetAnnotations(annotations)
+	return nil
+}
+
+func checkValidated(client *workloadapi.Client, rs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
 	resultMap := map[string]v1beta1.PipelineResourceResult{}
 	for _, r := range rs {
 		resultMap[r.Key] = r
@@ -255,6 +295,11 @@ func checkValidated(client *workloadapi.Client, rs []v1beta1.PipelineResourceRes
 	}
 
 	err = verifyManifest(resultMap)
+	if err != nil {
+		return err
+	}
+
+	err = verifyCertURI(cert, tr)
 	if err != nil {
 		return err
 	}
@@ -307,6 +352,15 @@ func getTrustBundle(client *workloadapi.Client) (*x509.CertPool, error) {
 		trustPool.AddCert(c)
 	}
 	return trustPool, nil
+}
+
+func verifyCertURI(cert *x509.Certificate, tr *v1beta1.TaskRun) error {
+	// URI:spiffe://example.org/ns/default/taskrun/cache-image-pipelinerun-r4r22-fetch-from-git
+	path := "/ns/" + tr.Namespace + "/taskrun/" + tr.Name
+	if cert.URIs[0].Path != path {
+		return fmt.Errorf("cert uri: %s does not match taskrun: %s", cert.URIs[0].Path, path)
+	}
+	return nil
 }
 
 func verifyCertificateTrust(cert *x509.Certificate, rootCertPool *x509.CertPool) error {
