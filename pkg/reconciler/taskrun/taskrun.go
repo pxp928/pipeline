@@ -453,7 +453,7 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 		}
 
 		if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
-			// TTL is in seconds
+			// TTL for the entry is in seconds
 			ttl := config.FromContextOrDefaults(ctx).Defaults.DefaultTimeoutMinutes * 60
 			if err = c.SpireClient.CreateEntries(ctx, tr, pod, ttl); err != nil {
 				logger.Errorf("Failed to create workload SPIFFE entry for taskrun %v: %v", tr.Name, err)
@@ -472,6 +472,14 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	tr.Status, err = podconvert.MakeTaskRunStatus(logger, *tr, pod)
 	if err != nil {
 		return err
+	}
+
+	if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire && tr.IsDone() {
+		if err := c.SpireClient.DeleteEntry(ctx, tr, pod); err != nil {
+			logger.Infof("Failed to remove workload SPIFFE entry for taskrun %v: %v", tr.Name, err)
+			return err
+		}
+		logger.Infof("Deleted SPIFFE workload entry for %v/%v", tr.Namespace, tr.Name)
 	}
 
 	logger.Infof("Successfully reconciled taskrun %s/%s with status: %#v", tr.Name, tr.Namespace, tr.Status.GetCondition(apis.ConditionSucceeded))
