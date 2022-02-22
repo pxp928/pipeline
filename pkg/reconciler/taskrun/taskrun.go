@@ -468,6 +468,14 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 		return err
 	}
 
+	if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire && tr.IsDone() {
+		if err := c.SpireClient.DeleteEntry(ctx, tr, pod); err != nil {
+			logger.Infof("Failed to remove workload SPIFFE entry for taskrun %v: %v", tr.Name, err)
+			return err
+		}
+		logger.Infof("Deleted SPIFFE workload entry for %v/%v", tr.Namespace, tr.Name)
+	}
+
 	logger.Infof("Successfully reconciled taskrun %s/%s with status: %#v", tr.Name, tr.Namespace, tr.Status.GetCondition(apis.ConditionSucceeded))
 	return nil
 }

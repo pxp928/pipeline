@@ -158,7 +158,7 @@ func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.T
 	}
 
 	if len(resp.Results) != len(entries) {
-		return fmt.Errorf("Batch create entry failed, malformed response expected %v result", len(entries))
+		return fmt.Errorf("batch create entry failed, malformed response expected %v result", len(entries))
 	}
 
 	var errPaths []string
@@ -173,8 +173,74 @@ func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.T
 	}
 
 	if len(errPaths) != 0 {
-		return fmt.Errorf("Batch create entry failed for entries %+v with codes %+v", errPaths, errCodes)
+		return fmt.Errorf("batch create entry failed for entries %+v with codes %+v", errPaths, errCodes)
 	}
+	return nil
+}
+
+func (sc *SpireServerApiClient) getEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) ([]*spiffetypes.Entry, error) {
+	req := &entryv1.ListEntriesRequest{
+		Filter: &entryv1.ListEntriesRequest_Filter{
+			BySpiffeId: &spiffetypes.SPIFFEID{
+				TrustDomain: sc.config.TrustDomain,
+				Path:        fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name),
+			},
+		},
+	}
+
+	entries := []*spiffetypes.Entry{}
+	for {
+		resp, err := sc.entryClient.ListEntries(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		entries = append(entries, resp.Entries...)
+
+		if resp.NextPageToken == "" {
+			break
+		}
+
+		req.PageToken = resp.NextPageToken
+	}
+
+	return entries, nil
+}
+
+func (sc *SpireServerApiClient) DeleteEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
+	entries, err := sc.getEntries(ctx, tr, pod)
+	if err != nil {
+		return err
+	}
+
+	var ids []string
+	for _, e := range entries {
+		ids = append(ids, e.Id)
+	}
+
+	req := &entryv1.BatchDeleteEntryRequest{
+		Ids: ids,
+	}
+	resp, err := sc.entryClient.BatchDeleteEntry(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	var errIds []string
+	var errCodes []int32
+
+	for _, r := range resp.Results {
+		if codes.Code(r.Status.Code) != codes.NotFound &&
+			codes.Code(r.Status.Code) != codes.OK {
+			errIds = append(errIds, r.Id)
+			errCodes = append(errCodes, r.Status.Code)
+		}
+	}
+
+	if len(errIds) != 0 {
+		return fmt.Errorf("batch delete entry failed for ids %+v with codes %+v", errIds, errCodes)
+	}
+
 	return nil
 }
 
