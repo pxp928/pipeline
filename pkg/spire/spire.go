@@ -19,6 +19,7 @@ package spire
 import (
 	"context"
 	"fmt"
+	"time"
 
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	spiffetypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -106,7 +107,7 @@ func (sc *SpireServerApiClient) NodeEntry(nodeName string) *spiffetypes.Entry {
 	}
 }
 
-func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int32) *spiffetypes.Entry {
+func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod, expiry int64) *spiffetypes.Entry {
 	// Note: We can potentially add attestation on the container images as well since
 	// the information is available here.
 	selectors := []*spiffetypes.Selector{
@@ -130,18 +131,21 @@ func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.P
 			Path:        fmt.Sprintf("%v%v", sc.config.NodeAliasPrefix, pod.Spec.NodeName),
 		},
 		Selectors: selectors,
-		Ttl:       ttl,
+		ExpiresAt: expiry,
 	}
 }
 
+// ttl is the TTL for the SPIRE entry in seconds, not the SVID TTL
 func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
 	}
+
+	expiryTime := time.Now().Unix() + int64(ttl)
 	entries := []*spiffetypes.Entry{
 		sc.NodeEntry(pod.Spec.NodeName),
-		sc.WorkloadEntry(tr, pod, int32(ttl)),
+		sc.WorkloadEntry(tr, pod, expiryTime),
 	}
 
 	req := entryv1.BatchCreateEntryRequest{
@@ -154,7 +158,7 @@ func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.T
 	}
 
 	if len(resp.Results) != len(entries) {
-		return fmt.Errorf("Batch create entry failed, malformed response expected %v result", len(entries))
+		return fmt.Errorf("batch create entry failed, malformed response expected %v result", len(entries))
 	}
 
 	var errPaths []string
@@ -169,8 +173,74 @@ func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.T
 	}
 
 	if len(errPaths) != 0 {
-		return fmt.Errorf("Batch create entry failed for entries %+v with codes %+v", errPaths, errCodes)
+		return fmt.Errorf("batch create entry failed for entries %+v with codes %+v", errPaths, errCodes)
 	}
+	return nil
+}
+
+func (sc *SpireServerApiClient) getEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) ([]*spiffetypes.Entry, error) {
+	req := &entryv1.ListEntriesRequest{
+		Filter: &entryv1.ListEntriesRequest_Filter{
+			BySpiffeId: &spiffetypes.SPIFFEID{
+				TrustDomain: sc.config.TrustDomain,
+				Path:        fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name),
+			},
+		},
+	}
+
+	entries := []*spiffetypes.Entry{}
+	for {
+		resp, err := sc.entryClient.ListEntries(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+
+		entries = append(entries, resp.Entries...)
+
+		if resp.NextPageToken == "" {
+			break
+		}
+
+		req.PageToken = resp.NextPageToken
+	}
+
+	return entries, nil
+}
+
+func (sc *SpireServerApiClient) DeleteEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
+	entries, err := sc.getEntries(ctx, tr, pod)
+	if err != nil {
+		return err
+	}
+
+	var ids []string
+	for _, e := range entries {
+		ids = append(ids, e.Id)
+	}
+
+	req := &entryv1.BatchDeleteEntryRequest{
+		Ids: ids,
+	}
+	resp, err := sc.entryClient.BatchDeleteEntry(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	var errIds []string
+	var errCodes []int32
+
+	for _, r := range resp.Results {
+		if codes.Code(r.Status.Code) != codes.NotFound &&
+			codes.Code(r.Status.Code) != codes.OK {
+			errIds = append(errIds, r.Id)
+			errCodes = append(errCodes, r.Status.Code)
+		}
+	}
+
+	if len(errIds) != 0 {
+		return fmt.Errorf("batch delete entry failed for ids %+v with codes %+v", errIds, errCodes)
+	}
+
 	return nil
 }
 
