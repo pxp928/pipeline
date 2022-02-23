@@ -18,15 +18,27 @@ package spire
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
+	"encoding/pem"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	spiffetypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	spireconfig "github.com/tektoncd/pipeline/pkg/spire/config"
@@ -35,11 +47,20 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+const (
+	taskRunStatusHashAnnotation    = "tekton.dev/status-hash"
+	taskRunStatusHashSigAnnotation = "tekton.dev/status-hash-sig"
+	controllerSvidAnnotation       = "tekton.dev/controller-svid"
+)
+
 type SpireServerApiClient struct {
 	config       spireconfig.SpireConfig
 	serverConn   *grpc.ClientConn
 	workloadConn *workloadapi.X509Source
 	entryClient  entryv1.EntryClient
+	workloadAPI  *workloadapi.Client
+	SVID         *x509svid.SVID
+	ctx          context.Context
 }
 
 func (sc *SpireServerApiClient) checkClient(ctx context.Context) error {
@@ -50,13 +71,22 @@ func (sc *SpireServerApiClient) checkClient(ctx context.Context) error {
 }
 
 func (sc *SpireServerApiClient) dial(ctx context.Context) error {
+	sc.ctx = ctx
 	if sc.workloadConn == nil {
 		// Create X509Source
 		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+sc.config.SocketPath)))
 		if err != nil {
-			return fmt.Errorf("Unable to create X509Source for SPIFFE client: %w", err)
+			return fmt.Errorf("unable to create X509Source for SPIFFE client: %w", err)
 		}
 		sc.workloadConn = source
+	}
+
+	if sc.workloadAPI == nil {
+		client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix://"+sc.config.SocketPath))
+		if err != nil {
+			return fmt.Errorf("spire workload API not initalized due to error: %s", err)
+		}
+		sc.workloadAPI = client
 	}
 
 	if sc.serverConn == nil {
@@ -66,7 +96,7 @@ func (sc *SpireServerApiClient) dial(ctx context.Context) error {
 		if err != nil {
 			sc.workloadConn.Close()
 			sc.workloadConn = nil
-			return fmt.Errorf("Unable to dial SPIRE server: %w", err)
+			return fmt.Errorf("unable to dial SPIRE server: %w", err)
 		}
 		sc.serverConn = conn
 	}
@@ -252,5 +282,208 @@ func (sc *SpireServerApiClient) Close() {
 	err = sc.workloadConn.Close()
 	if err != nil {
 		// Log error
+	}
+}
+
+func (sc *SpireServerApiClient) fetchSVID() (*x509svid.SVID, error) {
+	if sc.SVID != nil {
+		return sc.SVID, nil
+	}
+	xsvid, err := sc.workloadAPI.FetchX509SVID(sc.ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch controller SVID: %s", err)
+	}
+	sc.SVID = xsvid
+	return sc.SVID, nil
+}
+
+func (sc *SpireServerApiClient) CheckValidated(rs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
+	resultMap := map[string]v1beta1.PipelineResourceResult{}
+	for _, r := range rs {
+		resultMap[r.Key] = r
+	}
+
+	cert, err := getSVID(resultMap)
+	if err != nil {
+		return err
+	}
+
+	trust, err := getTrustBundle(sc.workloadAPI)
+	if err != nil {
+		return err
+	}
+
+	err = verifyManifest(resultMap)
+	if err != nil {
+		return err
+	}
+
+	err = verifyCertURI(cert, tr, sc.config.TrustDomain)
+	if err != nil {
+		return err
+	}
+
+	for key, val := range resultMap {
+		if strings.HasSuffix(key, ".sig") {
+			continue
+		}
+		if key == "SVID" {
+			continue
+		}
+		if val.ResultType == v1beta1.InternalTektonResultType {
+			continue
+		}
+		if err := verifyOne(cert.PublicKey, key, resultMap); err != nil {
+			return err
+		}
+		if err := verifyCertificateTrust(cert, trust); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (sc *SpireServerApiClient) AppendStatusAnnotation(tr *v1beta1.TaskRun) error {
+
+	/* 	if hash, ok := tr.Annotations[taskRunStatusHashAnnotation]; ok {
+		s, err := hashTaskrunStatus(tr)
+		if err != nil {
+			return err
+		}
+		if s != hash {
+
+		}
+	}  */
+	// Add status hash
+	current, err := hashTaskrunStatus(tr)
+	if err != nil {
+		return err
+	}
+	tr.Annotations[taskRunStatusHashAnnotation] = current
+
+	// Sign with controller private key
+	xsvid, err := sc.fetchSVID()
+	if err != nil {
+		return err
+	}
+
+	s, err := signWithKey(xsvid, current)
+	if err != nil {
+		return err
+	}
+	tr.Annotations[taskRunStatusHashSigAnnotation] = base64.StdEncoding.EncodeToString(s)
+
+	// Store Controller SVID
+	p := pem.EncodeToMemory(&pem.Block{
+		Bytes: xsvid.Certificates[0].Raw,
+		Type:  "CERTIFICATE",
+	})
+	tr.Annotations[controllerSvidAnnotation] = string(p)
+	return nil
+
+}
+
+func hashTaskrunStatus(tr *v1beta1.TaskRun) (string, error) {
+	s, err := json.Marshal(tr.Status)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(s)), nil
+}
+
+func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certificate, error) {
+	svid, ok := resultMap["SVID"]
+	if !ok {
+		return nil, errors.New("no SVID found")
+	}
+	block, _ := pem.Decode([]byte(svid.Value))
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("invalid SVID: %s", err)
+	}
+	return cert, nil
+}
+
+func getTrustBundle(client *workloadapi.Client) (*x509.CertPool, error) {
+	x509set, err := client.FetchX509Bundles(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	x509Bundle := x509set.Bundles()
+	if err != nil {
+		return nil, err
+	}
+	trustPool := x509.NewCertPool()
+	for _, c := range x509Bundle[0].X509Authorities() {
+		trustPool.AddCert(c)
+	}
+	return trustPool, nil
+}
+
+func verifyCertURI(cert *x509.Certificate, tr *v1beta1.TaskRun, trustDomain string) error {
+	// URI:spiffe://example.org/ns/default/taskrun/cache-image-pipelinerun-r4r22-fetch-from-git
+	path := "/ns/" + tr.Namespace + "/taskrun/" + tr.Name
+	if cert.URIs[0].Host != trustDomain {
+		return fmt.Errorf("cert uri: %s does not match trust domain: %s", cert.URIs[0].Host, trustDomain)
+	}
+	if cert.URIs[0].Path != path {
+		return fmt.Errorf("cert uri: %s does not match taskrun: %s", cert.URIs[0].Path, path)
+	}
+	return nil
+}
+
+func verifyCertificateTrust(cert *x509.Certificate, rootCertPool *x509.CertPool) error {
+	verifyOptions := x509.VerifyOptions{
+		Roots: rootCertPool,
+	}
+	chains, err := cert.Verify(verifyOptions)
+	if len(chains) == 0 || err != nil {
+		return fmt.Errorf("cert cannot be verified by provided roots")
+	}
+	return nil
+}
+
+func verifyManifest(results map[string]v1beta1.PipelineResourceResult) error {
+	manifest, ok := results["RESULT_MANIFEST"]
+	if !ok {
+		return errors.New("no manifest found in results")
+	}
+	s := strings.Split(manifest.Value, ",")
+	for _, key := range s {
+		_, found := results[key]
+		if !found {
+			return fmt.Errorf("no result found for %s but is part of the manifest %s", key, manifest.Value)
+		}
+	}
+	return nil
+}
+
+func verifyOne(pub interface{}, key string, results map[string]v1beta1.PipelineResourceResult) error {
+	signature, ok := results[key+".sig"]
+	if !ok {
+		return fmt.Errorf("no signature found for %s", key)
+	}
+	b, err := base64.StdEncoding.DecodeString(signature.Value)
+	if err != nil {
+		return fmt.Errorf("invalid signature: %s", err)
+	}
+	h := sha256.Sum256([]byte(results[key].Value))
+	// Check val against sig
+	switch t := pub.(type) {
+	case *ecdsa.PublicKey:
+		if !ecdsa.VerifyASN1(t, h[:], b) {
+			return errors.New("invalid signature")
+		}
+		return nil
+	case *rsa.PublicKey:
+		return rsa.VerifyPKCS1v15(t, crypto.SHA256, h[:], b)
+	case ed25519.PublicKey:
+		if !ed25519.Verify(t, []byte(results[key].Value), b) {
+			return errors.New("invalid signature")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported key type: %s", t)
 	}
 }

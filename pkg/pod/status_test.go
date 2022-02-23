@@ -960,7 +960,7 @@ func TestMakeTaskRunStatus(t *testing.T) {
 			}
 
 			logger, _ := logging.NewLogger("", "status")
-			got, err := MakeTaskRunStatus(logger, tr, &c.pod)
+			got, err := MakeTaskRunStatus(logger, tr, &c.pod, nil)
 			if err != nil {
 				t.Errorf("MakeTaskRunResult: %s", err)
 			}
@@ -1080,7 +1080,7 @@ func TestMakeRunStatusJSONError(t *testing.T) {
 	}
 
 	logger, _ := logging.NewLogger("", "status")
-	gotTr, err := MakeTaskRunStatus(logger, tr, pod)
+	gotTr, err := MakeTaskRunStatus(logger, tr, pod, nil)
 	if err == nil {
 		t.Error("Expected error, got nil")
 	}

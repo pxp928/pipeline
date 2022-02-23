@@ -463,7 +463,7 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	}
 
 	// Convert the Pod's status to the equivalent TaskRun Status.
-	tr.Status, err = podconvert.MakeTaskRunStatus(logger, *tr, pod)
+	tr.Status, err = podconvert.MakeTaskRunStatus(logger, *tr, pod, c.SpireClient)
 	if err != nil {
 		return err
 	}
@@ -525,6 +525,12 @@ func (c *Reconciler) updateLabelsAndAnnotations(ctx context.Context, tr *v1beta1
 		tr.Annotations = make(map[string]string, 1)
 	}
 	tr.Annotations[podconvert.ReleaseAnnotation] = version
+
+	/* 	if c.SpireClient != nil {
+		if c.SpireClient.AppendStatusAnnotation(tr) != nil {
+			return nil, fmt.Errorf("error appending taskRun %s status signed with private key: %w", tr.Name, err)
+		}
+	} */
 
 	newTr, err := c.taskRunLister.TaskRuns(tr.Namespace).Get(tr.Name)
 	if err != nil {
