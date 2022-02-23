@@ -526,11 +526,15 @@ func (c *Reconciler) updateLabelsAndAnnotations(ctx context.Context, tr *v1beta1
 	}
 	tr.Annotations[podconvert.ReleaseAnnotation] = version
 
-	/* 	if c.SpireClient != nil {
-		if c.SpireClient.AppendStatusAnnotation(tr) != nil {
-			return nil, fmt.Errorf("error appending taskRun %s status signed with private key: %w", tr.Name, err)
+	if c.SpireClient != nil {
+		if len(tr.Status.Conditions) >= 2 && tr.Status.Conditions[1].Type == "VERIFIED" {
+			if _, ok := tr.Annotations[spire.TaskRunStatusHashAnnotation]; !ok {
+				if c.SpireClient.AppendStatusAnnotation(tr) != nil {
+					return nil, fmt.Errorf("error appending taskRun %s status signed with private key: %w", tr.Name, err)
+				}
+			}
 		}
-	} */
+	}
 
 	newTr, err := c.taskRunLister.TaskRuns(tr.Namespace).Get(tr.Name)
 	if err != nil {

@@ -48,7 +48,7 @@ import (
 )
 
 const (
-	taskRunStatusHashAnnotation    = "tekton.dev/status-hash"
+	TaskRunStatusHashAnnotation    = "tekton.dev/status-hash"
 	taskRunStatusHashSigAnnotation = "tekton.dev/status-hash-sig"
 	controllerSvidAnnotation       = "tekton.dev/controller-svid"
 )
@@ -345,22 +345,12 @@ func (sc *SpireServerApiClient) CheckValidated(rs []v1beta1.PipelineResourceResu
 }
 
 func (sc *SpireServerApiClient) AppendStatusAnnotation(tr *v1beta1.TaskRun) error {
-
-	/* 	if hash, ok := tr.Annotations[taskRunStatusHashAnnotation]; ok {
-		s, err := hashTaskrunStatus(tr)
-		if err != nil {
-			return err
-		}
-		if s != hash {
-
-		}
-	}  */
 	// Add status hash
 	current, err := hashTaskrunStatus(tr)
 	if err != nil {
 		return err
 	}
-	tr.Annotations[taskRunStatusHashAnnotation] = current
+	tr.Annotations[TaskRunStatusHashAnnotation] = current
 
 	// Sign with controller private key
 	xsvid, err := sc.fetchSVID()
