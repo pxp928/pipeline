@@ -297,10 +297,10 @@ func (sc *SpireServerApiClient) fetchSVID() (*x509svid.SVID, error) {
 	return sc.SVID, nil
 }
 
-func (sc *SpireServerApiClient) CheckValidated(rs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
-	resultMap := map[string]v1beta1.PipelineResourceResult{}
+func (sc *SpireServerApiClient) CheckValidated(rs []v1beta1.TaskRunResult, tr *v1beta1.TaskRun) error {
+	resultMap := map[string]v1beta1.TaskRunResult{}
 	for _, r := range rs {
-		resultMap[r.Key] = r
+		resultMap[r.Name] = r
 	}
 
 	cert, err := getSVID(resultMap)
@@ -308,35 +308,31 @@ func (sc *SpireServerApiClient) CheckValidated(rs []v1beta1.PipelineResourceResu
 		return err
 	}
 
-	trust, err := getTrustBundle(sc.workloadAPI)
+	trust, err := getTrustBundle(sc.workloadAPI, sc.ctx)
 	if err != nil {
 		return err
 	}
 
-	err = verifyManifest(resultMap)
-	if err != nil {
+	if err := verifyManifest(resultMap); err != nil {
 		return err
 	}
 
-	err = verifyCertURI(cert, tr, sc.config.TrustDomain)
-	if err != nil {
+	if err := verifyCertURI(cert, tr, sc.config.TrustDomain); err != nil {
 		return err
 	}
 
-	for key, val := range resultMap {
+	if err := verifyCertificateTrust(cert, trust); err != nil {
+		return err
+	}
+
+	for key, _ := range resultMap {
 		if strings.HasSuffix(key, ".sig") {
 			continue
 		}
 		if key == "SVID" {
 			continue
 		}
-		if val.ResultType == v1beta1.InternalTektonResultType {
-			continue
-		}
 		if err := verifyOne(cert.PublicKey, key, resultMap); err != nil {
-			return err
-		}
-		if err := verifyCertificateTrust(cert, trust); err != nil {
 			return err
 		}
 	}
@@ -382,7 +378,21 @@ func hashTaskrunStatus(tr *v1beta1.TaskRun) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(s)), nil
 }
 
-func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certificate, error) {
+func CheckStatusAnnotationHash(tr *v1beta1.TaskRun) error {
+	// get stored hash of status
+	hash := tr.Annotations[TaskRunStatusHashAnnotation]
+	// get current hash of status
+	current, err := hashTaskrunStatus(tr)
+	if err != nil {
+		return err
+	}
+	if hash != current {
+		return fmt.Errorf("current status hash and stored annotation hash does not match! Annotation Hash: %s, Current Status Hash: %s", hash, current)
+	}
+	return nil
+}
+
+func getSVID(resultMap map[string]v1beta1.TaskRunResult) (*x509.Certificate, error) {
 	svid, ok := resultMap["SVID"]
 	if !ok {
 		return nil, errors.New("no SVID found")
@@ -395,8 +405,8 @@ func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certifi
 	return cert, nil
 }
 
-func getTrustBundle(client *workloadapi.Client) (*x509.CertPool, error) {
-	x509set, err := client.FetchX509Bundles(context.Background())
+func getTrustBundle(client *workloadapi.Client, ctx context.Context) (*x509.CertPool, error) {
+	x509set, err := client.FetchX509Bundles(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -434,7 +444,7 @@ func verifyCertificateTrust(cert *x509.Certificate, rootCertPool *x509.CertPool)
 	return nil
 }
 
-func verifyManifest(results map[string]v1beta1.PipelineResourceResult) error {
+func verifyManifest(results map[string]v1beta1.TaskRunResult) error {
 	manifest, ok := results["RESULT_MANIFEST"]
 	if !ok {
 		return errors.New("no manifest found in results")
@@ -449,7 +459,7 @@ func verifyManifest(results map[string]v1beta1.PipelineResourceResult) error {
 	return nil
 }
 
-func verifyOne(pub interface{}, key string, results map[string]v1beta1.PipelineResourceResult) error {
+func verifyOne(pub interface{}, key string, results map[string]v1beta1.TaskRunResult) error {
 	signature, ok := results[key+".sig"]
 	if !ok {
 		return fmt.Errorf("no signature found for %s", key)

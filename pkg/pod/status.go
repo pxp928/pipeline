@@ -130,7 +130,7 @@ func MakeTaskRunStatus(logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev
 	}
 
 	var merr *multierror.Error
-	if err := setTaskRunStatusBasedOnStepStatus(logger, stepStatuses, &tr, spireAPI); err != nil {
+	if err := setTaskRunStatusBasedOnStepStatus(logger, stepStatuses, &tr); err != nil {
 		merr = multierror.Append(merr, err)
 	}
 
@@ -138,10 +138,40 @@ func MakeTaskRunStatus(logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev
 
 	trs.TaskRunResults = removeDuplicateResults(trs.TaskRunResults)
 
+	if complete {
+		setTaskRunStatusBasedOnSpireVerification(logger, &tr, trs, spireAPI)
+	}
+
 	return *trs, merr.ErrorOrNil()
 }
 
-func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses []corev1.ContainerStatus, tr *v1beta1.TaskRun, spireAPI *spire.SpireServerApiClient) *multierror.Error {
+func setTaskRunStatusBasedOnSpireVerification(logger *zap.SugaredLogger, tr *v1beta1.TaskRun, trs *v1beta1.TaskRunStatus, spireAPI *spire.SpireServerApiClient) {
+	if tr.IsSuccessful() {
+		if spireAPI != nil {
+			if len(trs.TaskRunResults) >= 1 {
+				logger.Info("Validating Results with spire: ", trs.TaskRunResults)
+				if err := spireAPI.CheckValidated(trs.TaskRunResults, tr); err != nil {
+					trs.SetCondition(&apis.Condition{
+						Type:    "VERIFICATION FAILED",
+						Status:  corev1.ConditionFalse,
+						Reason:  "signatures verification failure",
+						Message: err.Error(),
+					})
+				} else {
+					verified := &apis.Condition{
+						Type:    "VERIFIED",
+						Status:  corev1.ConditionTrue,
+						Reason:  "checked signatures, svid, trust bundle, uri, and manifest",
+						Message: "Spire verified",
+					}
+					trs.SetCondition(verified)
+				}
+			}
+		}
+	}
+}
+
+func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses []corev1.ContainerStatus, tr *v1beta1.TaskRun) *multierror.Error {
 	trs := &tr.Status
 	var merr *multierror.Error
 
@@ -156,29 +186,6 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 
 			} else {
 				logger.Info("Results: ", results)
-				if tr.IsSuccessful() {
-					if spireAPI != nil {
-						if len(results) >= 1 && results[0].Key != "StartedAt" {
-							logger.Info("Validating Results with spire: ", results)
-							if err := spireAPI.CheckValidated(results, tr); err != nil {
-								trs.SetCondition(&apis.Condition{
-									Type:    "VERIFICATION FAILED",
-									Status:  corev1.ConditionFalse,
-									Reason:  "signatures verification failure",
-									Message: err.Error(),
-								})
-							} else {
-								verified := &apis.Condition{
-									Type:    "VERIFIED",
-									Status:  corev1.ConditionTrue,
-									Reason:  "checked signatures, svid, trust bundle, uri, and manifest",
-									Message: "Spire verified",
-								}
-								trs.SetCondition(verified)
-							}
-						}
-					}
-				}
 
 				time, err := extractStartedAtTimeFromResults(results)
 				if err != nil {
