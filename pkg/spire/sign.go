@@ -17,71 +17,18 @@ limitations under the License.
 package spire
 
 import (
-	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/pem"
 	"strings"
-	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
-	spireconfig "github.com/tektoncd/pipeline/pkg/spire/config"
 )
 
-type SpireWorkloadApiClient struct {
-	config spireconfig.SpireConfig
-	client *workloadapi.Client
-	SVID   *x509svid.SVID
-	ctx    context.Context
-}
-
-func (w *SpireWorkloadApiClient) DialClient(ctx context.Context) (*workloadapi.Client, error) {
-	w.ctx = ctx
-	if w.client != nil {
-		return w.client, nil
-	}
-	return w.dial(ctx)
-}
-
-func (w *SpireWorkloadApiClient) dial(ctx context.Context) (*workloadapi.Client, error) {
-	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix://"+w.config.SocketPath))
-	if err != nil {
-		return nil, errors.Errorf("Spire workload API not initalized due to error: %s", err.Error())
-	}
-	w.client = client
-	return client, nil
-}
-
-func (w *SpireWorkloadApiClient) getxsvid() *x509svid.SVID {
-	if w.SVID == nil {
-		backoffSeconds := 2
-		var xsvid *x509svid.SVID = nil
-		var err error = nil
-		for i := 0; i < 20; i += backoffSeconds {
-			xsvid, err = w.client.FetchX509SVID(w.ctx)
-			if err == nil {
-				break
-			}
-			time.Sleep(time.Duration(backoffSeconds) * time.Second)
-		}
-		w.SVID = xsvid
-	}
-	return w.SVID
-}
-
-func NewSpireWorkloadApiClient(c spireconfig.SpireConfig) *SpireWorkloadApiClient {
-	return &SpireWorkloadApiClient{
-		config: c,
-	}
-}
-
-func (w *SpireWorkloadApiClient) Sign(results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
+func (w *SpireEntrypointerApiClient) Sign(results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
 	xsvid := w.getxsvid()
 
 	output := []v1beta1.PipelineResourceResult{}

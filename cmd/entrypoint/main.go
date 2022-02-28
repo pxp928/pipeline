@@ -124,8 +124,9 @@ func main() {
 		}
 	}
 
-	spireConfig := config.SpireConfig{}
-	spireConfig.SocketPath = *socketPath
+	spireConfig := config.SpireConfig{
+		SocketPath: *socketPath,
+	}
 
 	e := entrypoint.Entrypointer{
 		Command:             append(cmd, flag.Args()...),

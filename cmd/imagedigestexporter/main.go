@@ -88,24 +88,21 @@ func main() {
 
 	if socketPath != nil {
 		ctx := context.Background()
-		spireConfig := config.SpireConfig{}
-		spireConfig.SocketPath = *socketPath
+		spireConfig := config.SpireConfig{
+			SocketPath: *socketPath,
+		}
 
-		spireWorkloadAPI := spire.NewSpireWorkloadApiClient(spireConfig)
+		spireWorkloadAPI := spire.NewSpireEntrypointerApiClient(spireConfig)
 		_, err := spireWorkloadAPI.DialClient(ctx)
 		if err != nil {
 			logger.Fatalf("spire workload API not initalized due to error: %s", err.Error())
 		}
-		if err == nil {
-			signed, err := spireWorkloadAPI.Sign(output)
-			if err != nil {
-				logger.Fatal(err)
-			}
-
-			output = append(output, signed...)
-		} else {
-			logger.Infof("Spire workload API not initalized due to error: %s", err.Error())
+		signed, err := spireWorkloadAPI.Sign(output)
+		if err != nil {
+			logger.Fatal(err)
 		}
+
+		output = append(output, signed...)
 	}
 
 	if err := termination.WriteMessage(*terminationMessagePath, output); err != nil {

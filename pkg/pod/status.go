@@ -98,7 +98,7 @@ func SidecarsReady(podStatus corev1.PodStatus) bool {
 }
 
 // MakeTaskRunStatus returns a TaskRunStatus based on the Pod's status.
-func MakeTaskRunStatus(logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev1.Pod, spireAPI *spire.SpireServerApiClient) (v1beta1.TaskRunStatus, error) {
+func MakeTaskRunStatus(logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev1.Pod, spireEnabled bool, spireAPI *spire.SpireControllerApiClient) (v1beta1.TaskRunStatus, error) {
 	trs := &tr.Status
 	if trs.GetCondition(apis.ConditionSucceeded) == nil || trs.GetCondition(apis.ConditionSucceeded).Status == corev1.ConditionUnknown {
 		// If the taskRunStatus doesn't exist yet, it's because we just started running
@@ -138,35 +138,31 @@ func MakeTaskRunStatus(logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev
 
 	trs.TaskRunResults = removeDuplicateResults(trs.TaskRunResults)
 
-	if complete {
+	if complete && spireEnabled {
 		setTaskRunStatusBasedOnSpireVerification(logger, &tr, trs, spireAPI)
 	}
 
 	return *trs, merr.ErrorOrNil()
 }
 
-func setTaskRunStatusBasedOnSpireVerification(logger *zap.SugaredLogger, tr *v1beta1.TaskRun, trs *v1beta1.TaskRunStatus, spireAPI *spire.SpireServerApiClient) {
-	if tr.IsSuccessful() {
-		if spireAPI != nil {
-			if len(trs.TaskRunResults) >= 1 {
-				logger.Info("Validating Results with spire: ", trs.TaskRunResults)
-				if err := spireAPI.CheckValidated(trs.TaskRunResults, tr); err != nil {
-					trs.SetCondition(&apis.Condition{
-						Type:    "VERIFICATION FAILED",
-						Status:  corev1.ConditionFalse,
-						Reason:  "signatures verification failure",
-						Message: err.Error(),
-					})
-				} else {
-					verified := &apis.Condition{
-						Type:    "VERIFIED",
-						Status:  corev1.ConditionTrue,
-						Reason:  "checked signatures, svid, trust bundle, uri, and manifest",
-						Message: "Spire verified",
-					}
-					trs.SetCondition(verified)
-				}
+func setTaskRunStatusBasedOnSpireVerification(logger *zap.SugaredLogger, tr *v1beta1.TaskRun, trs *v1beta1.TaskRunStatus, spireAPI *spire.SpireControllerApiClient) {
+	if tr.IsSuccessful() && spireAPI != nil && len(trs.TaskRunResults) >= 1 {
+		logger.Info("Validating Results with spire: ", trs.TaskRunResults)
+		if err := spireAPI.VerifyTaskRunResults(trs.TaskRunResults, tr); err != nil {
+			trs.SetCondition(&apis.Condition{
+				Type:    "VERIFICATION FAILED",
+				Status:  corev1.ConditionFalse,
+				Reason:  "signatures verification failure",
+				Message: err.Error(),
+			})
+		} else {
+			verified := &apis.Condition{
+				Type:    "VERIFIED",
+				Status:  corev1.ConditionTrue,
+				Reason:  "checked signatures, svid, trust bundle, uri, and manifest",
+				Message: "Spire verified",
 			}
+			trs.SetCondition(verified)
 		}
 	}
 }

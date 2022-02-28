@@ -63,7 +63,7 @@ func NewController(opts *pipeline.Options, clock clock.Clock) func(context.Conte
 			KubeClientSet:     kubeclientset,
 			PipelineClientSet: pipelineclientset,
 			Images:            opts.Images,
-			SpireClient:       spire.NewSpireServerApiClient(opts.SpireConfig),
+			SpireClient:       spire.NewSpireControllerApiClient(opts.SpireConfig),
 			Clock:             clock,
 			taskRunLister:     taskRunInformer.Lister(),
 			resourceLister:    resourceInformer.Lister(),

@@ -85,7 +85,7 @@ type Entrypointer struct {
 	// Spire configration that includes the spire socket to connect to
 	SpireConfig config.SpireConfig
 	// SpireWorkloadAPI connects to spire and does obtains SVID based on taskrun
-	SpireWorkloadAPI *spire.SpireWorkloadApiClient
+	SpireWorkloadAPI *spire.SpireEntrypointerApiClient
 }
 
 // Waiter encapsulates waiting for files to exist.
@@ -145,9 +145,8 @@ func (e Entrypointer) Go() error {
 	ctx := context.Background()
 	var err error = nil
 	if e.SpireConfig.SocketPath != "" {
-		e.SpireWorkloadAPI = spire.NewSpireWorkloadApiClient(e.SpireConfig)
-		_, err := e.SpireWorkloadAPI.DialClient(ctx)
-		if err != nil {
+		e.SpireWorkloadAPI = spire.NewSpireEntrypointerApiClient(e.SpireConfig)
+		if _, err := e.SpireWorkloadAPI.DialClient(ctx); err != nil {
 			logger.Errorf("spire workload API not initalized due to error: %s", err.Error())
 			return err
 		}

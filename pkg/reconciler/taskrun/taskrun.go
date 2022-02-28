@@ -68,7 +68,7 @@ type Reconciler struct {
 	KubeClientSet     kubernetes.Interface
 	PipelineClientSet clientset.Interface
 	Images            pipeline.Images
-	SpireClient       *spire.SpireServerApiClient
+	SpireClient       *spire.SpireControllerApiClient
 	Clock             clock.Clock
 
 	// listers index properties about resources
@@ -382,6 +382,7 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	// Get the TaskRun's Pod if it should have one. Otherwise, create the Pod.
 	var pod *corev1.Pod
 	var err error
+	spireEnabled := config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire
 
 	if tr.Status.PodName != "" {
 		pod, err = c.KubeClientSet.CoreV1().Pods(tr.Namespace).Get(ctx, tr.Status.PodName, metav1.GetOptions{})
@@ -446,7 +447,7 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 			logger.Warnf("Failed to log the metrics : %v", err)
 		}
 
-		if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
+		if spireEnabled {
 			// TTL for the entry is in seconds
 			ttl := config.FromContextOrDefaults(ctx).Defaults.DefaultTimeoutMinutes * 60
 			if err = c.SpireClient.CreateEntries(ctx, tr, pod, ttl); err != nil {
@@ -463,12 +464,12 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	}
 
 	// Convert the Pod's status to the equivalent TaskRun Status.
-	tr.Status, err = podconvert.MakeTaskRunStatus(logger, *tr, pod, c.SpireClient)
+	tr.Status, err = podconvert.MakeTaskRunStatus(logger, *tr, pod, spireEnabled, c.SpireClient)
 	if err != nil {
 		return err
 	}
 
-	if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire && tr.IsDone() {
+	if spireEnabled && tr.IsDone() {
 		if err := c.SpireClient.DeleteEntry(ctx, tr, pod); err != nil {
 			logger.Infof("Failed to remove workload SPIFFE entry for taskrun %v: %v", tr.Name, err)
 			return err
@@ -527,17 +528,18 @@ func (c *Reconciler) updateLabelsAndAnnotations(ctx context.Context, tr *v1beta1
 	tr.Annotations[podconvert.ReleaseAnnotation] = version
 
 	if c.SpireClient != nil {
-		if tr.IsSuccessful() {
+		if tr.IsSuccessful() && tr.Status.GetCondition(apis.ConditionType("VERIFIED")).IsTrue() {
 			if _, ok := tr.Annotations[spire.TaskRunStatusHashAnnotation]; !ok {
 				if c.SpireClient.AppendStatusAnnotation(tr) != nil {
 					return nil, fmt.Errorf("error appending taskRun %s status signed with private key: %w", tr.Name, err)
 				}
-			} else {
-				err := spire.CheckStatusAnnotationHash(tr)
-				if err != nil {
-					return nil, err
-				}
 			}
+			// else {
+			// 	err := spire.CheckStatusAnnotationHash(tr)
+			// 	if err != nil {
+			// 		return nil, err
+			// 	}
+			// }
 		}
 	}
 
