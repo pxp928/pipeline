@@ -21,8 +21,8 @@ import (
 	"encoding/json"
 	"flag"
 
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
-	"github.com/tektoncd/pipeline/pkg/entrypoint"
+	"github.com/tektoncd/pipeline/pkg/spire"
+	"github.com/tektoncd/pipeline/pkg/spire/config"
 	"github.com/tektoncd/pipeline/pkg/termination"
 	"knative.dev/pkg/logging"
 
@@ -34,6 +34,7 @@ import (
 var (
 	images                 = flag.String("images", "", "List of images resources built by task in json format")
 	terminationMessagePath = flag.String("terminationMessagePath", "/tekton/termination", "Location of file containing termination message")
+	socketPath             = flag.String("spire-socket-path", "/spiffe-workload-api/spire-agent.sock", "Experimental: The SPIRE agent socket for SPIFFE workload API.")
 )
 
 /* The input of this go program will be a JSON string with all the output PipelineResources of type
@@ -84,18 +85,24 @@ func main() {
 		})
 
 	}
-	ctx := context.Background()
 
-	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix:///spiffe-workload-api/spire-agent.sock"))
-	if err == nil {
-		signed, err := entrypoint.Sign(output, client)
+	if socketPath != nil {
+		ctx := context.Background()
+		spireConfig := config.SpireConfig{
+			SocketPath: *socketPath,
+		}
+
+		spireWorkloadAPI := spire.NewSpireEntrypointerApiClient(spireConfig)
+		_, err := spireWorkloadAPI.DialClient(ctx)
+		if err != nil {
+			logger.Fatalf("spire workload API not initalized due to error: %s", err.Error())
+		}
+		signed, err := spireWorkloadAPI.Sign(output)
 		if err != nil {
 			logger.Fatal(err)
 		}
 
 		output = append(output, signed...)
-	} else {
-		logger.Infof("Spire workload API not initalized due to error: %s", err.Error())
 	}
 
 	if err := termination.WriteMessage(*terminationMessagePath, output); err != nil {
