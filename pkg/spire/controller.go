@@ -35,28 +35,43 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-type SpireServerApiClient struct {
+const (
+	TaskRunStatusHashAnnotation    = "tekton.dev/status-hash"
+	taskRunStatusHashSigAnnotation = "tekton.dev/status-hash-sig"
+	controllerSvidAnnotation       = "tekton.dev/controller-svid"
+)
+
+type SpireControllerApiClient struct {
 	config       spireconfig.SpireConfig
 	serverConn   *grpc.ClientConn
 	workloadConn *workloadapi.X509Source
 	entryClient  entryv1.EntryClient
+	workloadAPI  *workloadapi.Client
 }
 
-func (sc *SpireServerApiClient) checkClient(ctx context.Context) error {
-	if sc.entryClient == nil || sc.workloadConn == nil || sc.serverConn == nil {
+func (sc *SpireControllerApiClient) checkClient(ctx context.Context) error {
+	if sc.entryClient == nil || sc.workloadConn == nil || sc.workloadAPI == nil || sc.serverConn == nil {
 		return sc.dial(ctx)
 	}
 	return nil
 }
 
-func (sc *SpireServerApiClient) dial(ctx context.Context) error {
+func (sc *SpireControllerApiClient) dial(ctx context.Context) error {
 	if sc.workloadConn == nil {
 		// Create X509Source
 		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(workloadapi.WithAddr("unix://"+sc.config.SocketPath)))
 		if err != nil {
-			return fmt.Errorf("Unable to create X509Source for SPIFFE client: %w", err)
+			return fmt.Errorf("unable to create X509Source for SPIFFE client: %w", err)
 		}
 		sc.workloadConn = source
+	}
+
+	if sc.workloadAPI == nil {
+		client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix://"+sc.config.SocketPath))
+		if err != nil {
+			return fmt.Errorf("spire workload API not initalized due to error: %w", err)
+		}
+		sc.workloadAPI = client
 	}
 
 	if sc.serverConn == nil {
@@ -66,7 +81,7 @@ func (sc *SpireServerApiClient) dial(ctx context.Context) error {
 		if err != nil {
 			sc.workloadConn.Close()
 			sc.workloadConn = nil
-			return fmt.Errorf("Unable to dial SPIRE server: %w", err)
+			return fmt.Errorf("unable to dial SPIRE server: %w", err)
 		}
 		sc.serverConn = conn
 	}
@@ -76,13 +91,13 @@ func (sc *SpireServerApiClient) dial(ctx context.Context) error {
 	return nil
 }
 
-func NewSpireServerApiClient(c spireconfig.SpireConfig) *SpireServerApiClient {
-	return &SpireServerApiClient{
+func NewSpireControllerApiClient(c spireconfig.SpireConfig) *SpireControllerApiClient {
+	return &SpireControllerApiClient{
 		config: c,
 	}
 }
 
-func (sc *SpireServerApiClient) NodeEntry(nodeName string) *spiffetypes.Entry {
+func (sc *SpireControllerApiClient) NodeEntry(nodeName string) *spiffetypes.Entry {
 	selectors := []*spiffetypes.Selector{
 		{
 			Type:  "k8s_psat",
@@ -107,7 +122,7 @@ func (sc *SpireServerApiClient) NodeEntry(nodeName string) *spiffetypes.Entry {
 	}
 }
 
-func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod, expiry int64) *spiffetypes.Entry {
+func (sc *SpireControllerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.Pod, expiry int64) *spiffetypes.Entry {
 	// Note: We can potentially add attestation on the container images as well since
 	// the information is available here.
 	selectors := []*spiffetypes.Selector{
@@ -136,7 +151,7 @@ func (sc *SpireServerApiClient) WorkloadEntry(tr *v1beta1.TaskRun, pod *corev1.P
 }
 
 // ttl is the TTL for the SPIRE entry in seconds, not the SVID TTL
-func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
+func (sc *SpireControllerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
@@ -178,7 +193,7 @@ func (sc *SpireServerApiClient) CreateEntries(ctx context.Context, tr *v1beta1.T
 	return nil
 }
 
-func (sc *SpireServerApiClient) getEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) ([]*spiffetypes.Entry, error) {
+func (sc *SpireControllerApiClient) getEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) ([]*spiffetypes.Entry, error) {
 	req := &entryv1.ListEntriesRequest{
 		Filter: &entryv1.ListEntriesRequest_Filter{
 			BySpiffeId: &spiffetypes.SPIFFEID{
@@ -207,7 +222,7 @@ func (sc *SpireServerApiClient) getEntries(ctx context.Context, tr *v1beta1.Task
 	return entries, nil
 }
 
-func (sc *SpireServerApiClient) DeleteEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
+func (sc *SpireControllerApiClient) DeleteEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
 	entries, err := sc.getEntries(ctx, tr, pod)
 	if err != nil {
 		return err
@@ -244,8 +259,12 @@ func (sc *SpireServerApiClient) DeleteEntry(ctx context.Context, tr *v1beta1.Tas
 	return nil
 }
 
-func (sc *SpireServerApiClient) Close() {
+func (sc *SpireControllerApiClient) Close() {
 	err := sc.serverConn.Close()
+	if err != nil {
+		// Log error
+	}
+	err = sc.workloadAPI.Close()
 	if err != nil {
 		// Log error
 	}

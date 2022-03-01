@@ -18,11 +18,6 @@ package entrypoint
 
 import (
 	"context"
-	"crypto"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -34,10 +29,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	"github.com/tektoncd/pipeline/pkg/spire"
+	"github.com/tektoncd/pipeline/pkg/spire/config"
 	"github.com/tektoncd/pipeline/pkg/termination"
 	"go.uber.org/zap"
 )
@@ -87,6 +82,10 @@ type Entrypointer struct {
 	OnError string
 	// StepMetadataDir is the directory for a step where the step related metadata can be stored
 	StepMetadataDir string
+	// Spire configration that includes the spire socket to connect to
+	SpireConfig config.SpireConfig
+	// SpireWorkloadAPI connects to spire and does obtains SVID based on taskrun
+	SpireWorkloadAPI *spire.SpireEntrypointerApiClient
 }
 
 // Waiter encapsulates waiting for files to exist.
@@ -104,24 +103,6 @@ type Runner interface {
 type PostWriter interface {
 	// Write writes to the path when complete.
 	Write(file, content string)
-}
-
-var xsvid *x509svid.SVID = nil
-
-func getxsvid(client *workloadapi.Client) (*x509svid.SVID, error) {
-	var err error = nil
-	if xsvid == nil {
-		backoffSeconds := 2
-		for i := 0; i < 20; i += backoffSeconds {
-			xsvid, err = client.FetchX509SVID(context.Background())
-			if err == nil {
-				break
-			}
-			time.Sleep(time.Duration(backoffSeconds) * time.Second)
-		}
-
-	}
-	return xsvid, nil
 }
 
 // Go optionally waits for a file, runs the command, and writes a
@@ -162,12 +143,13 @@ func (e Entrypointer) Go() error {
 	})
 
 	ctx := context.Background()
-	var err error
-	var client *workloadapi.Client = nil
-
-	client, err = workloadapi.New(ctx, workloadapi.WithAddr("unix:///spiffe-workload-api/spire-agent.sock"))
-	if err != nil {
-		logger.Errorf("Spire workload API not initalized due to error: %s", err.Error())
+	var err error = nil
+	if e.SpireConfig.SocketPath != "" {
+		e.SpireWorkloadAPI = spire.NewSpireEntrypointerApiClient(e.SpireConfig)
+		if _, err := e.SpireWorkloadAPI.DialClient(ctx); err != nil {
+			logger.Errorf("spire workload API not initalized due to error: %s", err.Error())
+			return err
+		}
 	}
 
 	if e.Timeout != nil && *e.Timeout < time.Duration(0) {
@@ -216,7 +198,7 @@ func (e Entrypointer) Go() error {
 	// strings.Split(..) with an empty string returns an array that contains one element, an empty string.
 	// This creates an error when trying to open the result folder as a file.
 	if len(e.Results) >= 1 && e.Results[0] != "" {
-		if err := e.readResultsFromDisk(client); err != nil {
+		if err := e.readResultsFromDisk(); err != nil {
 			logger.Fatalf("Error while handling results: %s", err)
 		}
 	}
@@ -224,65 +206,7 @@ func (e Entrypointer) Go() error {
 	return err
 }
 
-func Sign(results []v1beta1.PipelineResourceResult, client *workloadapi.Client) ([]v1beta1.PipelineResourceResult, error) {
-	xsvid, err := getxsvid(client)
-	if err != nil {
-		return nil, err
-	}
-	output := []v1beta1.PipelineResourceResult{}
-	if len(results) > 1 {
-		p := pem.EncodeToMemory(&pem.Block{
-			Bytes: xsvid.Certificates[0].Raw,
-			Type:  "CERTIFICATE",
-		})
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        "SVID",
-			Value:      string(p),
-			ResultType: v1beta1.TaskRunResultType,
-		})
-	}
-	for _, r := range results {
-		s, err := signWithKey(xsvid, r.Value)
-		if err != nil {
-			return nil, err
-		}
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        r.Key + ".sig",
-			Value:      base64.StdEncoding.EncodeToString(s),
-			ResultType: v1beta1.TaskRunResultType,
-		})
-	}
-	return output, nil
-}
-
-func signWithKey(xsvid *x509svid.SVID, value string) ([]byte, error) {
-	dgst := sha256.Sum256([]byte(value))
-	s, err := xsvid.PrivateKey.Sign(rand.Reader, dgst[:], crypto.SHA256)
-	if err != nil {
-		return nil, err
-	}
-	return s, nil
-}
-
-func getManifest(results []v1beta1.PipelineResourceResult) string {
-	keys := []string{}
-	for _, r := range results {
-		if strings.HasSuffix(r.Key, ".sig") {
-			continue
-		}
-		if r.Key == "SVID" {
-			continue
-		}
-		keys = append(keys, r.Key)
-	}
-	return strings.Join(keys, ",")
-}
-
-func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
-	xsvid, err := getxsvid(client)
-	if err != nil {
-		return err
-	}
+func (e Entrypointer) readResultsFromDisk() error {
 	output := []v1beta1.PipelineResourceResult{}
 	for _, resultFile := range e.Results {
 		if resultFile == "" {
@@ -302,30 +226,12 @@ func (e Entrypointer) readResultsFromDisk(client *workloadapi.Client) error {
 		})
 	}
 
-	if client != nil {
-		signed, err := Sign(output, client)
+	if e.SpireWorkloadAPI != nil {
+		signed, err := e.SpireWorkloadAPI.Sign(output)
 		if err != nil {
 			return err
 		}
 		output = append(output, signed...)
-	}
-	// get complete manifest of keys such that it can be verified
-	manifest := getManifest(output)
-	if manifest != "" {
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        "RESULT_MANIFEST",
-			Value:      manifest,
-			ResultType: v1beta1.TaskRunResultType,
-		})
-		manifestSig, err := signWithKey(xsvid, manifest)
-		if err != nil {
-			return err
-		}
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        "RESULT_MANIFEST.sig",
-			Value:      base64.StdEncoding.EncodeToString(manifestSig),
-			ResultType: v1beta1.TaskRunResultType,
-		})
 	}
 
 	// push output to termination path
