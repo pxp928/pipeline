@@ -98,3 +98,33 @@ func getManifest(results []v1beta1.PipelineResourceResult) string {
 	}
 	return strings.Join(keys, ",")
 }
+
+func (sc *SpireControllerApiClient) AppendStatusAnnotation(tr *v1beta1.TaskRun) error {
+	// Add status hash
+	current, err := hashTaskrunStatus(tr)
+	if err != nil {
+		return err
+	}
+	tr.Annotations[TaskRunStatusHashAnnotation] = current
+
+	// Sign with controller private key
+	xsvid, err := sc.fetchSVID()
+	if err != nil {
+		return err
+	}
+
+	s, err := signWithKey(xsvid, current)
+	if err != nil {
+		return err
+	}
+	tr.Annotations[taskRunStatusHashSigAnnotation] = base64.StdEncoding.EncodeToString(s)
+
+	// Store Controller SVID
+	p := pem.EncodeToMemory(&pem.Block{
+		Bytes: xsvid.Certificates[0].Raw,
+		Type:  "CERTIFICATE",
+	})
+	tr.Annotations[controllerSvidAnnotation] = string(p)
+	return nil
+
+}
