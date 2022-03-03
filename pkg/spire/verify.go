@@ -96,6 +96,14 @@ func hashTaskrunStatus(tr *v1beta1.TaskRun) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(s)), nil
 }
 
+func hashTaskrunStatusInternal(tr *v1beta1.TaskRun) (string, error) {
+	s, err := json.Marshal(tr.Status.TaskRunStatusFields)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(s)), nil
+}
+
 func CheckStatusAnnotationHash(tr *v1beta1.TaskRun) error {
 	// get stored hash of status
 	hash := tr.Annotations[TaskRunStatusHashAnnotation]
@@ -107,6 +115,21 @@ func CheckStatusAnnotationHash(tr *v1beta1.TaskRun) error {
 	if hash != current {
 		return fmt.Errorf("current status hash and stored annotation hash does not match! Annotation Hash: %s, Current Status Hash: %s", hash, current)
 	}
+	return nil
+}
+
+func CheckStatusInternalAnnotationHash(tr *v1beta1.TaskRun) error {
+	// get stored hash of status
+	hash := tr.Status.Annotations[TaskRunStatusHashAnnotation]
+	// get current hash of status
+	current, err := hashTaskrunStatusInternal(tr)
+	if err != nil {
+		return err
+	}
+	if hash != current {
+		return fmt.Errorf("current status hash and stored annotation hash does not match! Annotation Hash: %s, Current Status Hash: %s", hash, current)
+	}
+
 	return nil
 }
 
@@ -214,3 +237,5 @@ func verifyOne(pub interface{}, key string, results map[string]v1beta1.TaskRunRe
 		return fmt.Errorf("unsupported key type: %s", t)
 	}
 }
+
+// TODO: Create verify function calls for controller client
