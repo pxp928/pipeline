@@ -171,7 +171,7 @@ To demonstrate, we will use a simple task run that writes some results:
 kind: TaskRun
 apiVersion: tekton.dev/v1beta1
 metadata:
-  name: non-falisifiable-provenance
+  name: non-falsifiable-provenance
 spec:
   timeout: 60s
   taskSpec:
