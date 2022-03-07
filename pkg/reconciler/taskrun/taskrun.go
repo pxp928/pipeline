@@ -115,6 +115,7 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, tr *v1beta1.TaskRun) pkg
 	} else if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
 		var verified = false
 		if c.SpireClient != nil {
+			// TODO: Change to check + verify sig
 			if err := spire.CheckStatusInternalAnnotationHash(tr); err == nil {
 				verified = true
 			}
@@ -278,15 +279,13 @@ func (c *Reconciler) finishReconcileUpdateEmitEvents(ctx context.Context, tr *v1
 	// Add status internal annotations hash only if it was verified
 	if _, notVerified := tr.Status.Annotations[spire.NotVerifiedAnnotation]; !notVerified {
 		if c.SpireClient != nil {
-			if cerr := spire.CheckStatusInternalAnnotationHash(tr); cerr != nil {
-				err = c.SpireClient.AppendStatusInternalAnnotation(ctx, tr)
-				if err != nil {
-					logger.Warn("Failed to sign TaskRun internal status hash", zap.Error(err))
-					events.EmitError(controller.GetEventRecorder(ctx), err, tr)
-				} else {
-					logger.Infof("Successfully signed TaskRun internal status with hash: %v",
-						tr.Status.Annotations[spire.TaskRunStatusHashAnnotation])
-				}
+			err = c.SpireClient.AppendStatusInternalAnnotation(ctx, tr)
+			if err != nil {
+				logger.Warn("Failed to sign TaskRun internal status hash", zap.Error(err))
+				events.EmitError(controller.GetEventRecorder(ctx), err, tr)
+			} else {
+				logger.Infof("Successfully signed TaskRun internal status with hash: %v",
+					tr.Status.Annotations[spire.TaskRunStatusHashAnnotation])
 			}
 		}
 	}
