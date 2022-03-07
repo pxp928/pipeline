@@ -17,6 +17,7 @@ limitations under the License.
 package spire
 
 import (
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/sha256"
@@ -97,4 +98,76 @@ func getManifest(results []v1beta1.PipelineResourceResult) string {
 		keys = append(keys, r.Key)
 	}
 	return strings.Join(keys, ",")
+}
+
+func (sc *SpireControllerApiClient) AppendStatusAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
+	err := sc.checkClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Add status hash
+	current, err := hashTaskrunStatus(tr)
+	if err != nil {
+		return err
+	}
+	tr.Annotations[TaskRunStatusHashAnnotation] = current
+
+	// Sign with controller private key
+	xsvid, err := sc.fetchSVID()
+	if err != nil {
+		return err
+	}
+
+	s, err := signWithKey(xsvid, current)
+	if err != nil {
+		return err
+	}
+	tr.Annotations[taskRunStatusHashSigAnnotation] = base64.StdEncoding.EncodeToString(s)
+
+	// Store Controller SVID
+	p := pem.EncodeToMemory(&pem.Block{
+		Bytes: xsvid.Certificates[0].Raw,
+		Type:  "CERTIFICATE",
+	})
+	tr.Annotations[controllerSvidAnnotation] = string(p)
+	return nil
+
+}
+
+func (sc *SpireControllerApiClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
+	err := sc.checkClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Add status hash
+	currentHash, err := hashTaskrunStatusInternal(tr)
+	if err != nil {
+		return err
+	}
+
+	// Sign with controller private key
+	xsvid, err := sc.fetchSVID()
+	if err != nil {
+		return err
+	}
+
+	sig, err := signWithKey(xsvid, currentHash)
+	if err != nil {
+		return err
+	}
+
+	// Store Controller SVID
+	p := pem.EncodeToMemory(&pem.Block{
+		Bytes: xsvid.Certificates[0].Raw,
+		Type:  "CERTIFICATE",
+	})
+	if tr.Status.Annotations == nil {
+		tr.Status.Annotations = map[string]string{}
+	}
+	tr.Status.Annotations[controllerSvidAnnotation] = string(p)
+	tr.Status.Annotations[TaskRunStatusHashAnnotation] = currentHash
+	tr.Status.Annotations[taskRunStatusHashSigAnnotation] = base64.StdEncoding.EncodeToString(sig)
+	return nil
 }
