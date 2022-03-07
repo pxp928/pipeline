@@ -29,7 +29,12 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 )
 
-func (w *SpireEntrypointerApiClient) Sign(results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
+func (w *SpireEntrypointerApiClient) Sign(ctx context.Context, results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
+	err := w.checkClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	xsvid := w.getxsvid()
 
 	output := []v1beta1.PipelineResourceResult{}
@@ -98,41 +103,6 @@ func getManifest(results []v1beta1.PipelineResourceResult) string {
 		keys = append(keys, r.Key)
 	}
 	return strings.Join(keys, ",")
-}
-
-func (sc *SpireControllerApiClient) AppendStatusAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
-	err := sc.checkClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Add status hash
-	current, err := hashTaskrunStatus(tr)
-	if err != nil {
-		return err
-	}
-	tr.Annotations[TaskRunStatusHashAnnotation] = current
-
-	// Sign with controller private key
-	xsvid, err := sc.fetchSVID()
-	if err != nil {
-		return err
-	}
-
-	s, err := signWithKey(xsvid, current)
-	if err != nil {
-		return err
-	}
-	tr.Annotations[taskRunStatusHashSigAnnotation] = base64.StdEncoding.EncodeToString(s)
-
-	// Store Controller SVID
-	p := pem.EncodeToMemory(&pem.Block{
-		Bytes: xsvid.Certificates[0].Raw,
-		Type:  "CERTIFICATE",
-	})
-	tr.Annotations[controllerSvidAnnotation] = string(p)
-	return nil
-
 }
 
 func (sc *SpireControllerApiClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {

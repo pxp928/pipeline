@@ -32,20 +32,20 @@ type SpireEntrypointerApiClient struct {
 	client *workloadapi.Client
 }
 
-func (w *SpireEntrypointerApiClient) DialClient(ctx context.Context) (*workloadapi.Client, error) {
-	if w.client != nil {
-		return w.client, nil
+func (w *SpireEntrypointerApiClient) checkClient(ctx context.Context) error {
+	if w.client == nil {
+		return w.dial(ctx)
 	}
-	return w.dial(ctx)
+	return nil
 }
 
-func (w *SpireEntrypointerApiClient) dial(ctx context.Context) (*workloadapi.Client, error) {
+func (w *SpireEntrypointerApiClient) dial(ctx context.Context) error {
 	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix://"+w.config.SocketPath))
 	if err != nil {
-		return nil, errors.Errorf("Spire workload API not initalized due to error: %w", err.Error())
+		return errors.Errorf("Spire workload API not initalized due to error: %w", err.Error())
 	}
 	w.client = client
-	return client, nil
+	return nil
 }
 
 func (w *SpireEntrypointerApiClient) getxsvid() *x509svid.SVID {

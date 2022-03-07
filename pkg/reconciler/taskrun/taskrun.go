@@ -115,11 +115,11 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, tr *v1beta1.TaskRun) pkg
 	} else if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
 		var verified = false
 		if c.SpireClient != nil {
-			// TODO: Change to check + verify sig
-			if err := spire.CheckStatusInternalAnnotationHash(tr); err == nil {
+			if err := c.SpireClient.VerifyStatusInternalAnnotation(tr, logger); err == nil {
 				verified = true
 			}
 		}
+
 		if !verified {
 			if tr.Status.Annotations == nil {
 				tr.Status.Annotations = map[string]string{}
@@ -277,8 +277,8 @@ func (c *Reconciler) finishReconcileUpdateEmitEvents(ctx context.Context, tr *v1
 
 	var err error
 	// Add status internal annotations hash only if it was verified
-	if _, notVerified := tr.Status.Annotations[spire.NotVerifiedAnnotation]; !notVerified {
-		if c.SpireClient != nil {
+	if c.SpireClient != nil {
+		if c.SpireClient.SpireVerified(tr) {
 			err = c.SpireClient.AppendStatusInternalAnnotation(ctx, tr)
 			if err != nil {
 				logger.Warn("Failed to sign TaskRun internal status hash", zap.Error(err))
