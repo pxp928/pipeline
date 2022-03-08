@@ -562,14 +562,6 @@ func (c *Reconciler) updateLabelsAndAnnotations(ctx context.Context, tr *v1beta1
 	}
 	tr.Annotations[podconvert.ReleaseAnnotation] = version
 
-	if c.SpireClient != nil {
-		if tr.IsSuccessful() && tr.Status.GetCondition(apis.ConditionType("VERIFIED")).IsTrue() && c.SpireClient.SpireVerified(tr) {
-			if _, ok := tr.Status.Annotations[spire.ResultsVerifiedAnnotation]; !ok {
-				tr.Status.Annotations[spire.ResultsVerifiedAnnotation] = "true"
-			}
-		}
-	}
-
 	newTr, err := c.taskRunLister.TaskRuns(tr.Namespace).Get(tr.Name)
 	if err != nil {
 		return nil, fmt.Errorf("error getting TaskRun %s when updating labels/annotations: %w", tr.Name, err)

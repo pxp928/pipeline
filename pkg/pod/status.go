@@ -150,17 +150,17 @@ func setTaskRunStatusBasedOnSpireVerification(logger *zap.SugaredLogger, tr *v1b
 		logger.Info("Validating Results with spire: ", trs.TaskRunResults)
 		if err := spireAPI.VerifyTaskRunResults(trs.TaskRunResults, tr); err != nil {
 			trs.SetCondition(&apis.Condition{
-				Type:    "VERIFICATION FAILED",
+				Type:    "Failed",
 				Status:  corev1.ConditionFalse,
-				Reason:  "signatures verification failure",
+				Reason:  "spire result verification failure",
 				Message: err.Error(),
 			})
 		} else {
 			verified := &apis.Condition{
-				Type:    "VERIFIED",
+				Type:    "Verified",
 				Status:  corev1.ConditionTrue,
-				Reason:  "checked signatures, svid, trust bundle, uri, and manifest",
-				Message: "Spire verified",
+				Reason:  "verified results",
+				Message: "spire verified",
 			}
 			trs.SetCondition(verified)
 		}

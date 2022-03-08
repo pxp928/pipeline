@@ -133,7 +133,7 @@ func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(tr *v1beta1.T
 	logger.Info("Successfully verified signature")
 
 	// check current status hash vs annotation status hash by controller
-	if err := checkStatusInternalAnnotation(tr); err != nil {
+	if err := checkStatusInternalAnnotation(tr, annotations); err != nil {
 		return err
 	}
 	logger.Info("Successfully verified status annotation hash matches the current taskrun status")
@@ -156,9 +156,12 @@ func hashTaskrunStatusInternal(tr *v1beta1.TaskRun) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(s)), nil
 }
 
-func checkStatusInternalAnnotation(tr *v1beta1.TaskRun) error {
+func checkStatusInternalAnnotation(tr *v1beta1.TaskRun, annotations map[string]string) error {
 	// get stored hash of status
-	hash := tr.Status.Annotations[TaskRunStatusHashAnnotation]
+	hash, ok := annotations[TaskRunStatusHashAnnotation]
+	if !ok {
+		return fmt.Errorf("no annotation status hash found for %s", TaskRunStatusHashAnnotation)
+	}
 	// get current hash of status
 	current, err := hashTaskrunStatusInternal(tr)
 	if err != nil {
