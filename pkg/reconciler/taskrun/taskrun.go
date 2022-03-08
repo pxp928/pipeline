@@ -279,13 +279,15 @@ func (c *Reconciler) finishReconcileUpdateEmitEvents(ctx context.Context, tr *v1
 	// Add status internal annotations hash only if it was verified
 	if c.SpireClient != nil {
 		if c.SpireClient.SpireVerified(tr) {
-			err = c.SpireClient.AppendStatusInternalAnnotation(ctx, tr)
-			if err != nil {
-				logger.Warn("Failed to sign TaskRun internal status hash", zap.Error(err))
-				events.EmitError(controller.GetEventRecorder(ctx), err, tr)
-			} else {
-				logger.Infof("Successfully signed TaskRun internal status with hash: %v",
-					tr.Status.Annotations[spire.TaskRunStatusHashAnnotation])
+			if cerr := c.SpireClient.VerifyStatusInternalAnnotation(tr, logger); cerr != nil {
+				err = c.SpireClient.AppendStatusInternalAnnotation(ctx, tr)
+				if err != nil {
+					logger.Warn("Failed to sign TaskRun internal status hash", zap.Error(err))
+					events.EmitError(controller.GetEventRecorder(ctx), err, tr)
+				} else {
+					logger.Infof("Successfully signed TaskRun internal status with hash: %v",
+						tr.Status.Annotations[spire.TaskRunStatusHashAnnotation])
+				}
 			}
 		}
 	}
@@ -561,19 +563,10 @@ func (c *Reconciler) updateLabelsAndAnnotations(ctx context.Context, tr *v1beta1
 	tr.Annotations[podconvert.ReleaseAnnotation] = version
 
 	if c.SpireClient != nil {
-		_, notVerified := tr.Status.Annotations[spire.NotVerifiedAnnotation]
-		if tr.IsSuccessful() && tr.Status.GetCondition(apis.ConditionType("VERIFIED")).IsTrue() && !notVerified {
-			if _, ok := tr.Annotations[spire.TaskRunStatusHashAnnotation]; !ok {
-				if c.SpireClient.AppendStatusAnnotation(ctx, tr) != nil {
-					return nil, fmt.Errorf("error appending taskRun %s status signed with private key: %w", tr.Name, err)
-				}
+		if tr.IsSuccessful() && tr.Status.GetCondition(apis.ConditionType("VERIFIED")).IsTrue() && c.SpireClient.SpireVerified(tr) {
+			if _, ok := tr.Status.Annotations[spire.ResultsVerifiedAnnotation]; !ok {
+				tr.Status.Annotations[spire.ResultsVerifiedAnnotation] = "true"
 			}
-			// else {
-			// 	err := spire.CheckStatusAnnotationHash(tr)
-			// 	if err != nil {
-			// 		return nil, err
-			// 	}
-			// }
 		}
 	}
 

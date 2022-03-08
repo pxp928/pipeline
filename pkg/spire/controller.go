@@ -40,6 +40,7 @@ const (
 	taskRunStatusHashSigAnnotation = "tekton.dev/status-hash-sig"
 	controllerSvidAnnotation       = "tekton.dev/controller-svid"
 	NotVerifiedAnnotation          = "tekton.dev/not-verified"
+	ResultsVerifiedAnnotation      = "tekton.dev/verified-results"
 )
 
 type SpireControllerApiClient struct {
