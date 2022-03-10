@@ -115,7 +115,7 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, tr *v1beta1.TaskRun) pkg
 	} else if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
 		var verified = false
 		if c.SpireClient != nil {
-			if err := c.SpireClient.VerifyStatusInternalAnnotation(tr, logger); err == nil {
+			if err := c.SpireClient.VerifyStatusInternalAnnotation(ctx, tr, logger); err == nil {
 				verified = true
 			}
 		}
@@ -279,7 +279,7 @@ func (c *Reconciler) finishReconcileUpdateEmitEvents(ctx context.Context, tr *v1
 	// Add status internal annotations hash only if it was verified
 	if c.SpireClient != nil {
 		if c.SpireClient.SpireVerified(tr) {
-			if cerr := c.SpireClient.VerifyStatusInternalAnnotation(tr, logger); cerr != nil {
+			if cerr := c.SpireClient.VerifyStatusInternalAnnotation(ctx, tr, logger); cerr != nil {
 				err = c.SpireClient.AppendStatusInternalAnnotation(ctx, tr)
 				if err != nil {
 					logger.Warn("Failed to sign TaskRun internal status hash", zap.Error(err))
@@ -499,7 +499,7 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	}
 
 	// Convert the Pod's status to the equivalent TaskRun Status.
-	tr.Status, err = podconvert.MakeTaskRunStatus(logger, *tr, pod, spireEnabled, c.SpireClient)
+	tr.Status, err = podconvert.MakeTaskRunStatus(ctx, logger, *tr, pod, spireEnabled, c.SpireClient)
 	if err != nil {
 		return err
 	}

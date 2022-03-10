@@ -48,12 +48,12 @@ func (w *SpireEntrypointerApiClient) dial(ctx context.Context) error {
 	return nil
 }
 
-func (w *SpireEntrypointerApiClient) getxsvid() *x509svid.SVID {
+func (w *SpireEntrypointerApiClient) getxsvid(ctx context.Context) *x509svid.SVID {
 	backoffSeconds := 2
 	var xsvid *x509svid.SVID = nil
 	var err error = nil
 	for i := 0; i < 20; i += backoffSeconds {
-		xsvid, err = w.client.FetchX509SVID(context.Background())
+		xsvid, err = w.client.FetchX509SVID(ctx)
 		if err == nil {
 			break
 		}

@@ -33,28 +33,21 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
-	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 )
 
-func (sc *SpireControllerApiClient) fetchSVID() (*x509svid.SVID, error) {
-	xsvid, err := sc.workloadAPI.FetchX509SVID(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch controller SVID: %s", err)
-	}
-	return xsvid, nil
-}
-
-func (sc *SpireControllerApiClient) VerifyTaskRunResults(rs []v1beta1.TaskRunResult, tr *v1beta1.TaskRun) error {
-	err := sc.checkClient(context.Background())
+func (sc *SpireControllerApiClient) VerifyTaskRunResults(ctx context.Context, prs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
+	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	resultMap := map[string]v1beta1.TaskRunResult{}
-	for _, r := range rs {
-		resultMap[r.Name] = r
+	resultMap := map[string]v1beta1.PipelineResourceResult{}
+	for _, r := range prs {
+		if r.ResultType == v1beta1.TaskRunResultType {
+			resultMap[r.Key] = r
+		}
 	}
 
 	cert, err := getSVID(resultMap)
@@ -62,7 +55,7 @@ func (sc *SpireControllerApiClient) VerifyTaskRunResults(rs []v1beta1.TaskRunRes
 		return err
 	}
 
-	trust, err := getTrustBundle(sc.workloadAPI, context.Background())
+	trust, err := getTrustBundle(sc.workloadAPI, ctx)
 	if err != nil {
 		return err
 	}
@@ -80,10 +73,10 @@ func (sc *SpireControllerApiClient) VerifyTaskRunResults(rs []v1beta1.TaskRunRes
 	}
 
 	for key, _ := range resultMap {
-		if strings.HasSuffix(key, ".sig") {
+		if strings.HasSuffix(key, KeySignatureSuffix) {
 			continue
 		}
-		if key == "SVID" {
+		if key == KeySVID {
 			continue
 		}
 		if err := verifyResult(cert.PublicKey, key, resultMap); err != nil {
@@ -96,8 +89,8 @@ func (sc *SpireControllerApiClient) VerifyTaskRunResults(rs []v1beta1.TaskRunRes
 
 // Verify checks if the status has an SVID cert
 // it then verifies the provided signatures against the cert
-func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error {
-	err := sc.checkClient(context.Background())
+func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error {
+	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -105,7 +98,7 @@ func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(tr *v1beta1.T
 	annotations := tr.Status.Annotations
 
 	// get trust bundle from spire server
-	trust, err := getTrustBundle(sc.workloadAPI, context.Background())
+	trust, err := getTrustBundle(sc.workloadAPI, ctx)
 	if err != nil {
 		return err
 	}
@@ -174,8 +167,8 @@ func checkStatusInternalAnnotation(tr *v1beta1.TaskRun, annotations map[string]s
 	return nil
 }
 
-func getSVID(resultMap map[string]v1beta1.TaskRunResult) (*x509.Certificate, error) {
-	svid, ok := resultMap["SVID"]
+func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certificate, error) {
+	svid, ok := resultMap[KeySVID]
 	if !ok {
 		return nil, errors.New("no SVID found")
 	}
@@ -235,8 +228,8 @@ func verifyCertificateTrust(cert *x509.Certificate, rootCertPool *x509.CertPool)
 	return nil
 }
 
-func verifyManifest(results map[string]v1beta1.TaskRunResult) error {
-	manifest, ok := results["RESULT_MANIFEST"]
+func verifyManifest(results map[string]v1beta1.PipelineResourceResult) error {
+	manifest, ok := results[KeyResultManifest]
 	if !ok {
 		return errors.New("no manifest found in results")
 	}
@@ -262,8 +255,8 @@ func verifyAnnotation(pub interface{}, annotations map[string]string) error {
 	return verifySignature(pub, signature, hash)
 }
 
-func verifyResult(pub interface{}, key string, results map[string]v1beta1.TaskRunResult) error {
-	signature, ok := results[key+".sig"]
+func verifyResult(pub interface{}, key string, results map[string]v1beta1.PipelineResourceResult) error {
+	signature, ok := results[key+KeySignatureSuffix]
 	if !ok {
 		return fmt.Errorf("no signature found for %s", key)
 	}

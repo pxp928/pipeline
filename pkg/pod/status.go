@@ -17,6 +17,7 @@ limitations under the License.
 package pod
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -98,7 +99,7 @@ func SidecarsReady(podStatus corev1.PodStatus) bool {
 }
 
 // MakeTaskRunStatus returns a TaskRunStatus based on the Pod's status.
-func MakeTaskRunStatus(logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev1.Pod, spireEnabled bool, spireAPI *spire.SpireControllerApiClient) (v1beta1.TaskRunStatus, error) {
+func MakeTaskRunStatus(ctx context.Context, logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev1.Pod, spireEnabled bool, spireAPI *spire.SpireControllerApiClient) (v1beta1.TaskRunStatus, error) {
 	trs := &tr.Status
 	if trs.GetCondition(apis.ConditionSucceeded) == nil || trs.GetCondition(apis.ConditionSucceeded).Status == corev1.ConditionUnknown {
 		// If the taskRunStatus doesn't exist yet, it's because we just started running
@@ -130,7 +131,7 @@ func MakeTaskRunStatus(logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev
 	}
 
 	var merr *multierror.Error
-	if err := setTaskRunStatusBasedOnStepStatus(logger, stepStatuses, &tr); err != nil {
+	if err := setTaskRunStatusBasedOnStepStatus(ctx, logger, stepStatuses, &tr, spireEnabled, spireAPI); err != nil {
 		merr = multierror.Append(merr, err)
 	}
 
@@ -138,36 +139,26 @@ func MakeTaskRunStatus(logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev
 
 	trs.TaskRunResults = removeDuplicateResults(trs.TaskRunResults)
 
-	if complete && spireEnabled {
-		setTaskRunStatusBasedOnSpireVerification(logger, &tr, trs, spireAPI)
-	}
-
 	return *trs, merr.ErrorOrNil()
 }
 
-func setTaskRunStatusBasedOnSpireVerification(logger *zap.SugaredLogger, tr *v1beta1.TaskRun, trs *v1beta1.TaskRunStatus, spireAPI *spire.SpireControllerApiClient) {
+func setTaskRunStatusBasedOnSpireVerification(ctx context.Context, logger *zap.SugaredLogger, tr *v1beta1.TaskRun, trs *v1beta1.TaskRunStatus, filteredResults []v1beta1.PipelineResourceResult, spireAPI *spire.SpireControllerApiClient) {
+
 	if tr.IsSuccessful() && spireAPI != nil && len(trs.TaskRunResults) >= 1 {
-		logger.Info("Validating Results with spire: ", trs.TaskRunResults)
-		if err := spireAPI.VerifyTaskRunResults(trs.TaskRunResults, tr); err != nil {
-			trs.SetCondition(&apis.Condition{
-				Type:    "Failed",
-				Status:  corev1.ConditionFalse,
-				Reason:  "spire result verification failure",
-				Message: err.Error(),
-			})
+		logger.Info("validating signed results with spire: ", trs.TaskRunResults)
+		if err := spireAPI.VerifyTaskRunResults(ctx, filteredResults, tr); err != nil {
+			logger.Errorf("failed to verify signed results with spire: %w", err)
+			markStatusSignedResultsFailure(trs, err.Error())
 		} else {
-			verified := &apis.Condition{
-				Type:    "Verified",
-				Status:  corev1.ConditionTrue,
-				Reason:  "verified results",
-				Message: "spire verified",
-			}
-			trs.SetCondition(verified)
+			logger.Info("successfuly validated signed results with spire")
+			markStatusSignedResultsVerified(trs)
 		}
 	}
 }
 
-func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses []corev1.ContainerStatus, tr *v1beta1.TaskRun) *multierror.Error {
+func setTaskRunStatusBasedOnStepStatus(ctx context.Context, logger *zap.SugaredLogger, stepStatuses []corev1.ContainerStatus, tr *v1beta1.TaskRun,
+	spireEnabled bool, spireAPI *spire.SpireControllerApiClient) *multierror.Error {
+
 	trs := &tr.Status
 	var merr *multierror.Error
 
@@ -197,6 +188,9 @@ func setTaskRunStatusBasedOnStepStatus(logger *zap.SugaredLogger, stepStatuses [
 				if tr.IsSuccessful() {
 					trs.TaskRunResults = append(trs.TaskRunResults, taskResults...)
 					trs.ResourcesResult = append(trs.ResourcesResult, pipelineResourceResults...)
+					if spireEnabled {
+						setTaskRunStatusBasedOnSpireVerification(ctx, logger, tr, trs, filteredResults, spireAPI)
+					}
 				}
 				msg, err = createMessageFromResults(filteredResults)
 				if err != nil {
@@ -253,6 +247,18 @@ func filterResultsAndResources(results []v1beta1.PipelineResourceResult) ([]v1be
 	for _, r := range results {
 		switch r.ResultType {
 		case v1beta1.TaskRunResultType:
+			if strings.HasSuffix(r.Key, spire.KeySignatureSuffix) {
+				filteredResults = append(filteredResults, r)
+				continue
+			}
+			if r.Key == spire.KeySVID {
+				filteredResults = append(filteredResults, r)
+				continue
+			}
+			if r.Key == spire.KeyResultManifest {
+				filteredResults = append(filteredResults, r)
+				continue
+			}
 			taskRunResult := v1beta1.TaskRunResult{
 				Name:  r.Key,
 				Value: r.Value,
@@ -491,6 +497,26 @@ func markStatusSuccess(trs *v1beta1.TaskRunStatus) {
 		Status:  corev1.ConditionTrue,
 		Reason:  v1beta1.TaskRunReasonSuccessful.String(),
 		Message: "All Steps have completed executing",
+	})
+}
+
+// markStatusResultsVerified sets taskrun status to
+func markStatusSignedResultsVerified(trs *v1beta1.TaskRunStatus) {
+	trs.SetCondition(&apis.Condition{
+		Type:    apis.ConditionType(v1beta1.TaskRunConditionResultsVerified.String()),
+		Status:  corev1.ConditionTrue,
+		Reason:  v1beta1.TaskRunReasonResultsVerified.String(),
+		Message: "Successfully verified all spire signed taskrun results",
+	})
+}
+
+// markStatusFailure sets taskrun status to failure with specified reason
+func markStatusSignedResultsFailure(trs *v1beta1.TaskRunStatus, message string) {
+	trs.SetCondition(&apis.Condition{
+		Type:    apis.ConditionType(v1beta1.TaskRunConditionResultsVerified.String()),
+		Status:  corev1.ConditionFalse,
+		Reason:  v1beta1.TaskRunReasonsResultsVerificationFailed.String(),
+		Message: message,
 	})
 }
 
