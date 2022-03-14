@@ -146,7 +146,7 @@ func (sc *SpireControllerApiClient) AppendStatusInternalAnnotation(ctx context.C
 func (sc *SpireControllerApiClient) fetchSVID(ctx context.Context) (*x509svid.SVID, error) {
 	xsvid, err := sc.workloadAPI.FetchX509SVID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch controller SVID: %s", err)
+		return nil, fmt.Errorf("failed to fetch controller SVID: %w", err)
 	}
 	return xsvid, nil
 }

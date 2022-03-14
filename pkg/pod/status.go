@@ -184,7 +184,7 @@ func setTaskRunStatusBasedOnStepStatus(ctx context.Context, logger *zap.SugaredL
 					logger.Errorf("error extracting the exit code of step %q in taskrun %q: %v", s.Name, tr.Name, err)
 					merr = multierror.Append(merr, err)
 				}
-				taskResults, pipelineResourceResults, filteredResults := filterResultsAndResources(results)
+				taskResults, pipelineResourceResults, filteredResults := filterResultsAndResources(results, spireEnabled)
 				if tr.IsSuccessful() {
 					trs.TaskRunResults = append(trs.TaskRunResults, taskResults...)
 					trs.ResourcesResult = append(trs.ResourcesResult, pipelineResourceResults...)
@@ -240,24 +240,27 @@ func createMessageFromResults(results []v1beta1.PipelineResourceResult) (string,
 	return string(bytes), nil
 }
 
-func filterResultsAndResources(results []v1beta1.PipelineResourceResult) ([]v1beta1.TaskRunResult, []v1beta1.PipelineResourceResult, []v1beta1.PipelineResourceResult) {
+func filterResultsAndResources(results []v1beta1.PipelineResourceResult, spireEnabled bool) ([]v1beta1.TaskRunResult, []v1beta1.PipelineResourceResult, []v1beta1.PipelineResourceResult) {
+
 	var taskResults []v1beta1.TaskRunResult
 	var pipelineResourceResults []v1beta1.PipelineResourceResult
 	var filteredResults []v1beta1.PipelineResourceResult
 	for _, r := range results {
 		switch r.ResultType {
 		case v1beta1.TaskRunResultType:
-			if strings.HasSuffix(r.Key, spire.KeySignatureSuffix) {
-				filteredResults = append(filteredResults, r)
-				continue
-			}
-			if r.Key == spire.KeySVID {
-				filteredResults = append(filteredResults, r)
-				continue
-			}
-			if r.Key == spire.KeyResultManifest {
-				filteredResults = append(filteredResults, r)
-				continue
+			if spireEnabled {
+				if strings.HasSuffix(r.Key, spire.KeySignatureSuffix) {
+					filteredResults = append(filteredResults, r)
+					continue
+				}
+				if r.Key == spire.KeySVID {
+					filteredResults = append(filteredResults, r)
+					continue
+				}
+				if r.Key == spire.KeyResultManifest {
+					filteredResults = append(filteredResults, r)
+					continue
+				}
 			}
 			taskRunResult := v1beta1.TaskRunResult{
 				Name:  r.Key,

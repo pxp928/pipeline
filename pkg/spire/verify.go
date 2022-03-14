@@ -95,6 +95,10 @@ func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.C
 		return err
 	}
 
+	if !sc.CheckSpireVerifiedFlag(tr) {
+		return errors.New("annotation tekton.dev/not-verified = yes. Failed spire verification.")
+	}
+
 	annotations := tr.Status.Annotations
 
 	// get trust bundle from spire server
@@ -111,7 +115,7 @@ func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.C
 	block, _ := pem.Decode([]byte(svid))
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return fmt.Errorf("invalid SVID: %s", err)
+		return fmt.Errorf("invalid SVID: %w", err)
 	}
 
 	// verify certificate root of trust
@@ -126,7 +130,7 @@ func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.C
 	logger.Info("Successfully verified signature")
 
 	// check current status hash vs annotation status hash by controller
-	if err := checkStatusInternalAnnotation(tr, annotations); err != nil {
+	if err := CheckStatusInternalAnnotation(tr); err != nil {
 		return err
 	}
 	logger.Info("Successfully verified status annotation hash matches the current taskrun status")
@@ -134,7 +138,7 @@ func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.C
 	return nil
 }
 
-func (sc *SpireControllerApiClient) SpireVerified(tr *v1beta1.TaskRun) bool {
+func (sc *SpireControllerApiClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
 	if _, notVerified := tr.Status.Annotations[NotVerifiedAnnotation]; !notVerified {
 		return true
 	}
@@ -149,8 +153,9 @@ func hashTaskrunStatusInternal(tr *v1beta1.TaskRun) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(s)), nil
 }
 
-func checkStatusInternalAnnotation(tr *v1beta1.TaskRun, annotations map[string]string) error {
+func CheckStatusInternalAnnotation(tr *v1beta1.TaskRun) error {
 	// get stored hash of status
+	annotations := tr.Status.Annotations
 	hash, ok := annotations[TaskRunStatusHashAnnotation]
 	if !ok {
 		return fmt.Errorf("no annotation status hash found for %s", TaskRunStatusHashAnnotation)
@@ -175,7 +180,7 @@ func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certifi
 	block, _ := pem.Decode([]byte(svid.Value))
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("invalid SVID: %s", err)
+		return nil, fmt.Errorf("invalid SVID: %w", err)
 	}
 	return cert, nil
 }
@@ -223,7 +228,7 @@ func verifyCertificateTrust(cert *x509.Certificate, rootCertPool *x509.CertPool)
 	}
 	chains, err := cert.Verify(verifyOptions)
 	if len(chains) == 0 || err != nil {
-		return fmt.Errorf("cert cannot be verified by provided roots")
+		return errors.New("cert cannot be verified by provided roots")
 	}
 	return nil
 }
@@ -266,7 +271,7 @@ func verifyResult(pub interface{}, key string, results map[string]v1beta1.Pipeli
 func verifySignature(pub interface{}, signature string, value string) error {
 	b, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
-		return fmt.Errorf("invalid signature: %s", err)
+		return fmt.Errorf("invalid signature: %w", err)
 	}
 	h := sha256.Sum256([]byte(value))
 	// Check val against sig

@@ -118,16 +118,14 @@ func (c *Reconciler) ReconcileKind(ctx context.Context, tr *v1beta1.TaskRun) pkg
 			if err := c.SpireClient.VerifyStatusInternalAnnotation(ctx, tr, logger); err == nil {
 				verified = true
 			}
-		}
-
-		if !verified {
-			if tr.Status.Annotations == nil {
-				tr.Status.Annotations = map[string]string{}
+			if !verified {
+				if tr.Status.Annotations == nil {
+					tr.Status.Annotations = map[string]string{}
+				}
+				tr.Status.Annotations[spire.NotVerifiedAnnotation] = "yes"
 			}
-			tr.Status.Annotations[spire.NotVerifiedAnnotation] = "yes"
+			logger.Infof("taskrun verification status: %t with hash %v \n", verified, tr.Status.Annotations[spire.TaskRunStatusHashAnnotation])
 		}
-
-		logger.Infof("taskrun verification status: %t with hash %v \n", verified, tr.Status.Annotations[spire.TaskRunStatusHashAnnotation])
 	}
 
 	// If the TaskRun is complete, run some post run fixtures when applicable
@@ -277,17 +275,15 @@ func (c *Reconciler) finishReconcileUpdateEmitEvents(ctx context.Context, tr *v1
 
 	var err error
 	// Add status internal annotations hash only if it was verified
-	if c.SpireClient != nil {
-		if c.SpireClient.SpireVerified(tr) {
-			if cerr := c.SpireClient.VerifyStatusInternalAnnotation(ctx, tr, logger); cerr != nil {
-				err = c.SpireClient.AppendStatusInternalAnnotation(ctx, tr)
-				if err != nil {
-					logger.Warn("Failed to sign TaskRun internal status hash", zap.Error(err))
-					events.EmitError(controller.GetEventRecorder(ctx), err, tr)
-				} else {
-					logger.Infof("Successfully signed TaskRun internal status with hash: %v",
-						tr.Status.Annotations[spire.TaskRunStatusHashAnnotation])
-				}
+	if c.SpireClient != nil && c.SpireClient.CheckSpireVerifiedFlag(tr) {
+		if err := spire.CheckStatusInternalAnnotation(tr); err != nil {
+			err = c.SpireClient.AppendStatusInternalAnnotation(ctx, tr)
+			if err != nil {
+				logger.Warn("Failed to sign TaskRun internal status hash", zap.Error(err))
+				events.EmitError(controller.GetEventRecorder(ctx), err, tr)
+			} else {
+				logger.Infof("Successfully signed TaskRun internal status with hash: %v",
+					tr.Status.Annotations[spire.TaskRunStatusHashAnnotation])
 			}
 		}
 	}
