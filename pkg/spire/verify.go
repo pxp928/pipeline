@@ -31,24 +31,23 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 
-	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 )
 
-func (sc *SpireControllerApiClient) fetchSVID() (*x509svid.SVID, error) {
-	xsvid, err := sc.workloadAPI.FetchX509SVID(context.Background())
+func (sc *SpireControllerApiClient) VerifyTaskRunResults(ctx context.Context, prs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
+	err := sc.checkClient(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch controller SVID: %s", err)
+		return err
 	}
-	return xsvid, nil
-}
 
-func (sc *SpireControllerApiClient) VerifyTaskRunResults(rs []v1beta1.TaskRunResult, tr *v1beta1.TaskRun) error {
-	resultMap := map[string]v1beta1.TaskRunResult{}
-	for _, r := range rs {
-		resultMap[r.Name] = r
+	resultMap := map[string]v1beta1.PipelineResourceResult{}
+	for _, r := range prs {
+		if r.ResultType == v1beta1.TaskRunResultType {
+			resultMap[r.Key] = r
+		}
 	}
 
 	cert, err := getSVID(resultMap)
@@ -56,7 +55,7 @@ func (sc *SpireControllerApiClient) VerifyTaskRunResults(rs []v1beta1.TaskRunRes
 		return err
 	}
 
-	trust, err := getTrustBundle(sc.workloadAPI, context.Background())
+	trust, err := getTrustBundle(sc.workloadAPI, ctx)
 	if err != nil {
 		return err
 	}
@@ -74,13 +73,13 @@ func (sc *SpireControllerApiClient) VerifyTaskRunResults(rs []v1beta1.TaskRunRes
 	}
 
 	for key, _ := range resultMap {
-		if strings.HasSuffix(key, ".sig") {
+		if strings.HasSuffix(key, KeySignatureSuffix) {
 			continue
 		}
-		if key == "SVID" {
+		if key == KeySVID {
 			continue
 		}
-		if err := verifyOne(cert.PublicKey, key, resultMap); err != nil {
+		if err := verifyResult(cert.PublicKey, key, resultMap); err != nil {
 			return err
 		}
 	}
@@ -88,12 +87,62 @@ func (sc *SpireControllerApiClient) VerifyTaskRunResults(rs []v1beta1.TaskRunRes
 	return nil
 }
 
-func hashTaskrunStatus(tr *v1beta1.TaskRun) (string, error) {
-	s, err := json.Marshal(tr.Status)
+// Verify checks if the status has an SVID cert
+// it then verifies the provided signatures against the cert
+func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error {
+	err := sc.checkClient(ctx)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return fmt.Sprintf("%x", sha256.Sum256(s)), nil
+
+	if !sc.CheckSpireVerifiedFlag(tr) {
+		return errors.New("annotation tekton.dev/not-verified = yes. Failed spire verification.")
+	}
+
+	annotations := tr.Status.Annotations
+
+	// get trust bundle from spire server
+	trust, err := getTrustBundle(sc.workloadAPI, ctx)
+	if err != nil {
+		return err
+	}
+
+	// verify controller SVID
+	svid, ok := annotations[controllerSvidAnnotation]
+	if !ok {
+		return errors.New("No SVID found")
+	}
+	block, _ := pem.Decode([]byte(svid))
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("invalid SVID: %w", err)
+	}
+
+	// verify certificate root of trust
+	if err := verifyCertificateTrust(cert, trust); err != nil {
+		return err
+	}
+	logger.Infof("Successfully verified certificate %s against SPIRE", svid)
+
+	if err := verifyAnnotation(cert.PublicKey, annotations); err != nil {
+		return err
+	}
+	logger.Info("Successfully verified signature")
+
+	// check current status hash vs annotation status hash by controller
+	if err := CheckStatusInternalAnnotation(tr); err != nil {
+		return err
+	}
+	logger.Info("Successfully verified status annotation hash matches the current taskrun status")
+
+	return nil
+}
+
+func (sc *SpireControllerApiClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
+	if _, notVerified := tr.Status.Annotations[NotVerifiedAnnotation]; !notVerified {
+		return true
+	}
+	return false
 }
 
 func hashTaskrunStatusInternal(tr *v1beta1.TaskRun) (string, error) {
@@ -104,23 +153,13 @@ func hashTaskrunStatusInternal(tr *v1beta1.TaskRun) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(s)), nil
 }
 
-func CheckStatusAnnotationHash(tr *v1beta1.TaskRun) error {
+func CheckStatusInternalAnnotation(tr *v1beta1.TaskRun) error {
 	// get stored hash of status
-	hash := tr.Annotations[TaskRunStatusHashAnnotation]
-	// get current hash of status
-	current, err := hashTaskrunStatus(tr)
-	if err != nil {
-		return err
+	annotations := tr.Status.Annotations
+	hash, ok := annotations[TaskRunStatusHashAnnotation]
+	if !ok {
+		return fmt.Errorf("no annotation status hash found for %s", TaskRunStatusHashAnnotation)
 	}
-	if hash != current {
-		return fmt.Errorf("current status hash and stored annotation hash does not match! Annotation Hash: %s, Current Status Hash: %s", hash, current)
-	}
-	return nil
-}
-
-func CheckStatusInternalAnnotationHash(tr *v1beta1.TaskRun) error {
-	// get stored hash of status
-	hash := tr.Status.Annotations[TaskRunStatusHashAnnotation]
 	// get current hash of status
 	current, err := hashTaskrunStatusInternal(tr)
 	if err != nil {
@@ -133,15 +172,15 @@ func CheckStatusInternalAnnotationHash(tr *v1beta1.TaskRun) error {
 	return nil
 }
 
-func getSVID(resultMap map[string]v1beta1.TaskRunResult) (*x509.Certificate, error) {
-	svid, ok := resultMap["SVID"]
+func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certificate, error) {
+	svid, ok := resultMap[KeySVID]
 	if !ok {
 		return nil, errors.New("no SVID found")
 	}
 	block, _ := pem.Decode([]byte(svid.Value))
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("invalid SVID: %s", err)
+		return nil, fmt.Errorf("invalid SVID: %w", err)
 	}
 	return cert, nil
 }
@@ -189,13 +228,13 @@ func verifyCertificateTrust(cert *x509.Certificate, rootCertPool *x509.CertPool)
 	}
 	chains, err := cert.Verify(verifyOptions)
 	if len(chains) == 0 || err != nil {
-		return fmt.Errorf("cert cannot be verified by provided roots")
+		return errors.New("cert cannot be verified by provided roots")
 	}
 	return nil
 }
 
-func verifyManifest(results map[string]v1beta1.TaskRunResult) error {
-	manifest, ok := results["RESULT_MANIFEST"]
+func verifyManifest(results map[string]v1beta1.PipelineResourceResult) error {
+	manifest, ok := results[KeyResultManifest]
 	if !ok {
 		return errors.New("no manifest found in results")
 	}
@@ -209,16 +248,32 @@ func verifyManifest(results map[string]v1beta1.TaskRunResult) error {
 	return nil
 }
 
-func verifyOne(pub interface{}, key string, results map[string]v1beta1.TaskRunResult) error {
-	signature, ok := results[key+".sig"]
+func verifyAnnotation(pub interface{}, annotations map[string]string) error {
+	signature, ok := annotations[taskRunStatusHashSigAnnotation]
+	if !ok {
+		return fmt.Errorf("no signature found for %s", taskRunStatusHashSigAnnotation)
+	}
+	hash, ok := annotations[TaskRunStatusHashAnnotation]
+	if !ok {
+		return fmt.Errorf("no annotation status hash found for %s", TaskRunStatusHashAnnotation)
+	}
+	return verifySignature(pub, signature, hash)
+}
+
+func verifyResult(pub interface{}, key string, results map[string]v1beta1.PipelineResourceResult) error {
+	signature, ok := results[key+KeySignatureSuffix]
 	if !ok {
 		return fmt.Errorf("no signature found for %s", key)
 	}
-	b, err := base64.StdEncoding.DecodeString(signature.Value)
+	return verifySignature(pub, signature.Value, results[key].Value)
+}
+
+func verifySignature(pub interface{}, signature string, value string) error {
+	b, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
-		return fmt.Errorf("invalid signature: %s", err)
+		return fmt.Errorf("invalid signature: %w", err)
 	}
-	h := sha256.Sum256([]byte(results[key].Value))
+	h := sha256.Sum256([]byte(value))
 	// Check val against sig
 	switch t := pub.(type) {
 	case *ecdsa.PublicKey:
@@ -229,7 +284,7 @@ func verifyOne(pub interface{}, key string, results map[string]v1beta1.TaskRunRe
 	case *rsa.PublicKey:
 		return rsa.VerifyPKCS1v15(t, crypto.SHA256, h[:], b)
 	case ed25519.PublicKey:
-		if !ed25519.Verify(t, []byte(results[key].Value), b) {
+		if !ed25519.Verify(t, []byte(value), b) {
 			return errors.New("invalid signature")
 		}
 		return nil
@@ -237,5 +292,3 @@ func verifyOne(pub interface{}, key string, results map[string]v1beta1.TaskRunRe
 		return fmt.Errorf("unsupported key type: %s", t)
 	}
 }
-
-// TODO: Create verify function calls for controller client

@@ -17,6 +17,7 @@ limitations under the License.
 package pod
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -960,7 +961,7 @@ func TestMakeTaskRunStatus(t *testing.T) {
 			}
 
 			logger, _ := logging.NewLogger("", "status")
-			got, err := MakeTaskRunStatus(logger, tr, &c.pod, false, nil)
+			got, err := MakeTaskRunStatus(context.Background(), logger, tr, &c.pod, false, nil)
 			if err != nil {
 				t.Errorf("MakeTaskRunResult: %s", err)
 			}
@@ -1080,7 +1081,7 @@ func TestMakeRunStatusJSONError(t *testing.T) {
 	}
 
 	logger, _ := logging.NewLogger("", "status")
-	gotTr, err := MakeTaskRunStatus(logger, tr, pod, false, nil)
+	gotTr, err := MakeTaskRunStatus(context.Background(), logger, tr, pod, false, nil)
 	if err == nil {
 		t.Error("Expected error, got nil")
 	}

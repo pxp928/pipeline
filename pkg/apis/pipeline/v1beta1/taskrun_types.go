@@ -114,6 +114,19 @@ type TaskRunStatus struct {
 	TaskRunStatusFields `json:",inline"`
 }
 
+// TaskRunConditionType is an enum used to store TaskRun custom conditions
+// conditions such as one used in spire results verification
+type TaskRunConditionType string
+
+const (
+	// TaskRunResultsVerified is a Condition Type that indicates that the results were verified by spire
+	TaskRunConditionResultsVerified TaskRunConditionType = "SignedResultsVerified"
+)
+
+func (t TaskRunConditionType) String() string {
+	return string(t)
+}
+
 // TaskRunReason is an enum used to store all TaskRun reason for
 // the Succeeded condition that are controlled by the TaskRun itself. Failure
 // reasons that emerge from underlying resources are not included here
@@ -132,6 +145,10 @@ const (
 	TaskRunReasonCancelled TaskRunReason = "TaskRunCancelled"
 	// TaskRunReasonTimedOut is the reason set when the Taskrun has timed out
 	TaskRunReasonTimedOut TaskRunReason = "TaskRunTimeout"
+	// TaskRunReasonResultsVerified is the reason set when the TaskRun results are verified by spire
+	TaskRunReasonResultsVerified TaskRunReason = "TaskRunResultsVerified"
+	// TaskRunReasonResultsFailed is the reason set when the TaskRun results are failed to verify by spire
+	TaskRunReasonsResultsVerificationFailed TaskRunReason = "TaskRunResultsVerificationFailed"
 )
 
 func (t TaskRunReason) String() string {
