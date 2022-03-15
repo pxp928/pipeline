@@ -146,10 +146,6 @@ func (e Entrypointer) Go() error {
 	var err error = nil
 	if e.SpireConfig.SocketPath != "" {
 		e.SpireWorkloadAPI = spire.NewSpireEntrypointerApiClient(e.SpireConfig)
-		if _, err := e.SpireWorkloadAPI.DialClient(ctx); err != nil {
-			logger.Errorf("spire workload API not initalized due to error: %s", err.Error())
-			return err
-		}
 	}
 
 	if e.Timeout != nil && *e.Timeout < time.Duration(0) {
@@ -198,7 +194,7 @@ func (e Entrypointer) Go() error {
 	// strings.Split(..) with an empty string returns an array that contains one element, an empty string.
 	// This creates an error when trying to open the result folder as a file.
 	if len(e.Results) >= 1 && e.Results[0] != "" {
-		if err := e.readResultsFromDisk(); err != nil {
+		if err := e.readResultsFromDisk(ctx); err != nil {
 			logger.Fatalf("Error while handling results: %s", err)
 		}
 	}
@@ -206,7 +202,7 @@ func (e Entrypointer) Go() error {
 	return err
 }
 
-func (e Entrypointer) readResultsFromDisk() error {
+func (e Entrypointer) readResultsFromDisk(ctx context.Context) error {
 	output := []v1beta1.PipelineResourceResult{}
 	for _, resultFile := range e.Results {
 		if resultFile == "" {
@@ -227,7 +223,7 @@ func (e Entrypointer) readResultsFromDisk() error {
 	}
 
 	if e.SpireWorkloadAPI != nil {
-		signed, err := e.SpireWorkloadAPI.Sign(output)
+		signed, err := e.SpireWorkloadAPI.Sign(ctx, output)
 		if err != nil {
 			return err
 		}
