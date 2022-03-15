@@ -23,14 +23,20 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/pem"
+	"fmt"
 	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 )
 
-func (w *SpireEntrypointerApiClient) Sign(results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
-	xsvid := w.getxsvid()
+func (w *SpireEntrypointerApiClient) Sign(ctx context.Context, results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
+	err := w.checkClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	xsvid := w.getxsvid(ctx)
 
 	output := []v1beta1.PipelineResourceResult{}
 	if len(results) > 1 {
@@ -39,7 +45,7 @@ func (w *SpireEntrypointerApiClient) Sign(results []v1beta1.PipelineResourceResu
 			Type:  "CERTIFICATE",
 		})
 		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        "SVID",
+			Key:        KeySVID,
 			Value:      string(p),
 			ResultType: v1beta1.TaskRunResultType,
 		})
@@ -50,7 +56,7 @@ func (w *SpireEntrypointerApiClient) Sign(results []v1beta1.PipelineResourceResu
 			return nil, err
 		}
 		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        r.Key + ".sig",
+			Key:        r.Key + KeySignatureSuffix,
 			Value:      base64.StdEncoding.EncodeToString(s),
 			ResultType: v1beta1.TaskRunResultType,
 		})
@@ -59,7 +65,7 @@ func (w *SpireEntrypointerApiClient) Sign(results []v1beta1.PipelineResourceResu
 	manifest := getManifest(results)
 	if manifest != "" {
 		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        "RESULT_MANIFEST",
+			Key:        KeyResultManifest,
 			Value:      manifest,
 			ResultType: v1beta1.TaskRunResultType,
 		})
@@ -68,7 +74,7 @@ func (w *SpireEntrypointerApiClient) Sign(results []v1beta1.PipelineResourceResu
 			return nil, err
 		}
 		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        "RESULT_MANIFEST.sig",
+			Key:        KeyResultManifest + KeySignatureSuffix,
 			Value:      base64.StdEncoding.EncodeToString(manifestSig),
 			ResultType: v1beta1.TaskRunResultType,
 		})
@@ -89,50 +95,15 @@ func signWithKey(xsvid *x509svid.SVID, value string) ([]byte, error) {
 func getManifest(results []v1beta1.PipelineResourceResult) string {
 	keys := []string{}
 	for _, r := range results {
-		if strings.HasSuffix(r.Key, ".sig") {
+		if strings.HasSuffix(r.Key, KeySignatureSuffix) {
 			continue
 		}
-		if r.Key == "SVID" {
+		if r.Key == KeySVID {
 			continue
 		}
 		keys = append(keys, r.Key)
 	}
 	return strings.Join(keys, ",")
-}
-
-func (sc *SpireControllerApiClient) AppendStatusAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
-	err := sc.checkClient(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Add status hash
-	current, err := hashTaskrunStatus(tr)
-	if err != nil {
-		return err
-	}
-	tr.Annotations[TaskRunStatusHashAnnotation] = current
-
-	// Sign with controller private key
-	xsvid, err := sc.fetchSVID()
-	if err != nil {
-		return err
-	}
-
-	s, err := signWithKey(xsvid, current)
-	if err != nil {
-		return err
-	}
-	tr.Annotations[taskRunStatusHashSigAnnotation] = base64.StdEncoding.EncodeToString(s)
-
-	// Store Controller SVID
-	p := pem.EncodeToMemory(&pem.Block{
-		Bytes: xsvid.Certificates[0].Raw,
-		Type:  "CERTIFICATE",
-	})
-	tr.Annotations[controllerSvidAnnotation] = string(p)
-	return nil
-
 }
 
 func (sc *SpireControllerApiClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
@@ -148,7 +119,7 @@ func (sc *SpireControllerApiClient) AppendStatusInternalAnnotation(ctx context.C
 	}
 
 	// Sign with controller private key
-	xsvid, err := sc.fetchSVID()
+	xsvid, err := sc.fetchSVID(ctx)
 	if err != nil {
 		return err
 	}
@@ -170,4 +141,12 @@ func (sc *SpireControllerApiClient) AppendStatusInternalAnnotation(ctx context.C
 	tr.Status.Annotations[TaskRunStatusHashAnnotation] = currentHash
 	tr.Status.Annotations[taskRunStatusHashSigAnnotation] = base64.StdEncoding.EncodeToString(sig)
 	return nil
+}
+
+func (sc *SpireControllerApiClient) fetchSVID(ctx context.Context) (*x509svid.SVID, error) {
+	xsvid, err := sc.workloadAPI.FetchX509SVID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch controller SVID: %w", err)
+	}
+	return xsvid, nil
 }

@@ -93,11 +93,7 @@ func main() {
 		}
 
 		spireWorkloadAPI := spire.NewSpireEntrypointerApiClient(spireConfig)
-		_, err := spireWorkloadAPI.DialClient(ctx)
-		if err != nil {
-			logger.Fatalf("spire workload API not initalized due to error: %s", err.Error())
-		}
-		signed, err := spireWorkloadAPI.Sign(output)
+		signed, err := spireWorkloadAPI.Sign(ctx, output)
 		if err != nil {
 			logger.Fatal(err)
 		}
