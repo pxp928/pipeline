@@ -30,7 +30,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 )
 
-func (w *SpireEntrypointerApiClient) Sign(ctx context.Context, results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
+func (w *spireEntrypointerApiClient) Sign(ctx context.Context, results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
 	err := w.checkClient(ctx)
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func getManifest(results []v1beta1.PipelineResourceResult) string {
 	return strings.Join(keys, ",")
 }
 
-func (sc *SpireControllerApiClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
+func (sc *spireControllerApiClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
@@ -140,7 +140,7 @@ func (sc *SpireControllerApiClient) AppendStatusInternalAnnotation(ctx context.C
 	return nil
 }
 
-func (sc *SpireControllerApiClient) fetchSVID(ctx context.Context) (*x509svid.SVID, error) {
+func (sc *spireControllerApiClient) fetchSVID(ctx context.Context) (*x509svid.SVID, error) {
 	xsvid, err := sc.workloadAPI.FetchX509SVID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch controller SVID: %w", err)

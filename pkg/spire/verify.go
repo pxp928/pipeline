@@ -37,7 +37,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 )
 
-func (sc *SpireControllerApiClient) VerifyTaskRunResults(ctx context.Context, prs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
+func (sc *spireControllerApiClient) VerifyTaskRunResults(ctx context.Context, prs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (sc *SpireControllerApiClient) VerifyTaskRunResults(ctx context.Context, pr
 
 // Verify checks if the status has an SVID cert
 // it then verifies the provided signatures against the cert
-func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error {
+func (sc *spireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
@@ -138,7 +138,7 @@ func (sc *SpireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.C
 	return nil
 }
 
-func (sc *SpireControllerApiClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
+func (sc *spireControllerApiClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
 	if _, notVerified := tr.Status.Annotations[NotVerifiedAnnotation]; !notVerified {
 		return true
 	}
