@@ -40,6 +40,9 @@ const (
 	taskRunStatusHashSigAnnotation = "tekton.dev/status-hash-sig"
 	controllerSvidAnnotation       = "tekton.dev/controller-svid"
 	NotVerifiedAnnotation          = "tekton.dev/not-verified"
+	KeySVID                        = "SVID"
+	KeySignatureSuffix             = ".sig"
+	KeyResultManifest              = "RESULT_MANIFEST"
 )
 
 type SpireControllerApiClient struct {
@@ -87,7 +90,9 @@ func (sc *SpireControllerApiClient) dial(ctx context.Context) error {
 		sc.serverConn = conn
 	}
 
-	sc.entryClient = entryv1.NewEntryClient(sc.serverConn)
+	if sc.entryClient == nil {
+		sc.entryClient = entryv1.NewEntryClient(sc.serverConn)
+	}
 
 	return nil
 }
