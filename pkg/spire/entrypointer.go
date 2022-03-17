@@ -62,7 +62,7 @@ func (w *spireEntrypointerApiClient) getxsvid(ctx context.Context) *x509svid.SVI
 	return xsvid
 }
 
-func NewspireEntrypointerApiClient(c spireconfig.SpireConfig) SpireEntrypointerApiClient {
+func NewSpireEntrypointerApiClient(c spireconfig.SpireConfig) SpireEntrypointerApiClient {
 	return &spireEntrypointerApiClient{
 		config: c,
 	}

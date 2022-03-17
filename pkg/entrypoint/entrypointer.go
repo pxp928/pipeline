@@ -85,7 +85,7 @@ type Entrypointer struct {
 	// Spire configration that includes the spire socket to connect to
 	SpireConfig config.SpireConfig
 	// SpireWorkloadAPI connects to spire and does obtains SVID based on taskrun
-	SpireWorkloadAPI *spire.SpireEntrypointerApiClient
+	SpireWorkloadAPI spire.SpireEntrypointerApiClient
 }
 
 // Waiter encapsulates waiting for files to exist.

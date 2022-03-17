@@ -68,7 +68,7 @@ type Reconciler struct {
 	KubeClientSet     kubernetes.Interface
 	PipelineClientSet clientset.Interface
 	Images            pipeline.Images
-	SpireClient       *spire.SpireControllerApiClient
+	SpireClient       spire.SpireControllerApiClient
 	Clock             clock.Clock
 
 	// listers index properties about resources
