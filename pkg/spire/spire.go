@@ -24,6 +24,16 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+const (
+	TaskRunStatusHashAnnotation    = "tekton.dev/status-hash"
+	taskRunStatusHashSigAnnotation = "tekton.dev/status-hash-sig"
+	controllerSvidAnnotation       = "tekton.dev/controller-svid"
+	NotVerifiedAnnotation          = "tekton.dev/not-verified"
+	KeySVID                        = "SVID"
+	KeySignatureSuffix             = ".sig"
+	KeyResultManifest              = "RESULT_MANIFEST"
+)
+
 type SpireControllerApiClient interface {
 	AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error
 	CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool

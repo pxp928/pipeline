@@ -35,16 +35,6 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-const (
-	TaskRunStatusHashAnnotation    = "tekton.dev/status-hash"
-	taskRunStatusHashSigAnnotation = "tekton.dev/status-hash-sig"
-	controllerSvidAnnotation       = "tekton.dev/controller-svid"
-	NotVerifiedAnnotation          = "tekton.dev/not-verified"
-	KeySVID                        = "SVID"
-	KeySignatureSuffix             = ".sig"
-	KeyResultManifest              = "RESULT_MANIFEST"
-)
-
 type spireControllerApiClient struct {
 	config       spireconfig.SpireConfig
 	serverConn   *grpc.ClientConn

@@ -42,7 +42,7 @@ func (w *spireEntrypointerApiClient) checkClient(ctx context.Context) error {
 func (w *spireEntrypointerApiClient) dial(ctx context.Context) error {
 	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix://"+w.config.SocketPath))
 	if err != nil {
-		return errors.Errorf("Spire workload API not initalized due to error: %w", err.Error())
+		return errors.Wrap(err, "Spire workload API not initalized due to error")
 	}
 	w.client = client
 	return nil
