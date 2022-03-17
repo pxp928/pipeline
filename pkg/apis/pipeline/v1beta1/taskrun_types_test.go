@@ -135,6 +135,27 @@ func TestTaskRunIsCancelled(t *testing.T) {
 	}
 }
 
+func TestTaskRunIsTaskRunResultVerified(t *testing.T) {
+	tr := &v1beta1.TaskRun{
+		Status: v1beta1.TaskRunStatus{
+			Status: duckv1beta1.Status{
+				Conditions: []apis.Condition{{
+					Type:    apis.ConditionType(v1beta1.TaskRunConditionResultsVerified.String()),
+					Status:  corev1.ConditionTrue,
+					Reason:  v1beta1.TaskRunReasonResultsVerified.String(),
+					Message: "Successfully verified all spire signed taskrun results",
+				}},
+			},
+		},
+	}
+	if !tr.IsTaskRunResultVerified() {
+		t.Fatal("Expected pipelinerun status to be results verified")
+	}
+	if tr.Status.GetCondition(apis.ConditionType(v1beta1.TaskRunConditionResultsVerified.String())).Reason != v1beta1.TaskRunReasonResultsVerified.String() {
+		t.Fatal("Expected pipelinerun status reason to be TaskRunResultsVerified")
+	}
+}
+
 func TestTaskRunHasVolumeClaimTemplate(t *testing.T) {
 	tr := &v1beta1.TaskRun{
 		Spec: v1beta1.TaskRunSpec{
