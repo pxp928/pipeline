@@ -249,15 +249,8 @@ func filterResultsAndResources(results []v1beta1.PipelineResourceResult, spireEn
 		switch r.ResultType {
 		case v1beta1.TaskRunResultType:
 			if spireEnabled {
-				if strings.HasSuffix(r.Key, spire.KeySignatureSuffix) {
-					filteredResults = append(filteredResults, r)
-					continue
-				}
-				if r.Key == spire.KeySVID {
-					filteredResults = append(filteredResults, r)
-					continue
-				}
-				if r.Key == spire.KeyResultManifest {
+				switch {
+				case r.Key == spire.KeySVID, r.Key == spire.KeyResultManifest, strings.HasSuffix(r.Key, spire.KeySignatureSuffix):
 					filteredResults = append(filteredResults, r)
 					continue
 				}
