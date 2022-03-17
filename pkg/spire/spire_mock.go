@@ -109,13 +109,18 @@ func (sc *SpireMockClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
 
 func (sc *SpireMockClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
 	id := fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name)
+	if sc.Entries == nil {
+		sc.Entries = map[string]bool{}
+	}
 	sc.Entries[id] = true
 	return nil
 }
 
 func (sc *SpireMockClient) DeleteEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
 	id := fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name)
-	delete(sc.Entries, id)
+	if sc.Entries != nil {
+		delete(sc.Entries, id)
+	}
 	return nil
 }
 
@@ -232,36 +237,35 @@ func (sc *SpireMockClient) Sign(ctx context.Context, results []v1beta1.PipelineR
 	}
 
 	output := []v1beta1.PipelineResourceResult{}
-	if len(results) > 1 {
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        KeySVID,
-			Value:      identity,
-			ResultType: v1beta1.TaskRunResultType,
-		})
-	}
+	output = append(output, v1beta1.PipelineResourceResult{
+		Key:        KeySVID,
+		Value:      identity,
+		ResultType: v1beta1.TaskRunResultType,
+	})
+
 	for _, r := range results {
-		s := sc.mockSign(r.Value, identity)
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        r.Key + KeySignatureSuffix,
-			Value:      s,
-			ResultType: v1beta1.TaskRunResultType,
-		})
+		if r.ResultType == v1beta1.TaskRunResultType {
+			s := sc.mockSign(r.Value, identity)
+			output = append(output, v1beta1.PipelineResourceResult{
+				Key:        r.Key + KeySignatureSuffix,
+				Value:      s,
+				ResultType: v1beta1.TaskRunResultType,
+			})
+		}
 	}
 	// get complete manifest of keys such that it can be verified
 	manifest := getManifest(results)
-	if manifest != "" {
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        KeyResultManifest,
-			Value:      manifest,
-			ResultType: v1beta1.TaskRunResultType,
-		})
-		manifestSig := sc.mockSign(manifest, identity)
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        KeyResultManifest + KeySignatureSuffix,
-			Value:      manifestSig,
-			ResultType: v1beta1.TaskRunResultType,
-		})
-	}
+	output = append(output, v1beta1.PipelineResourceResult{
+		Key:        KeyResultManifest,
+		Value:      manifest,
+		ResultType: v1beta1.TaskRunResultType,
+	})
+	manifestSig := sc.mockSign(manifest, identity)
+	output = append(output, v1beta1.PipelineResourceResult{
+		Key:        KeyResultManifest + KeySignatureSuffix,
+		Value:      manifestSig,
+		ResultType: v1beta1.TaskRunResultType,
+	})
 
 	return output, nil
 }

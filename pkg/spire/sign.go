@@ -39,46 +39,45 @@ func (w *spireEntrypointerApiClient) Sign(ctx context.Context, results []v1beta1
 	xsvid := w.getxsvid(ctx)
 
 	output := []v1beta1.PipelineResourceResult{}
-	if len(results) > 1 {
-		p := pem.EncodeToMemory(&pem.Block{
-			Bytes: xsvid.Certificates[0].Raw,
-			Type:  "CERTIFICATE",
-		})
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        KeySVID,
-			Value:      string(p),
-			ResultType: v1beta1.TaskRunResultType,
-		})
-	}
+	p := pem.EncodeToMemory(&pem.Block{
+		Bytes: xsvid.Certificates[0].Raw,
+		Type:  "CERTIFICATE",
+	})
+	output = append(output, v1beta1.PipelineResourceResult{
+		Key:        KeySVID,
+		Value:      string(p),
+		ResultType: v1beta1.TaskRunResultType,
+	})
+
 	for _, r := range results {
-		s, err := signWithKey(xsvid, r.Value)
-		if err != nil {
-			return nil, err
+		if r.ResultType == v1beta1.TaskRunResultType {
+			s, err := signWithKey(xsvid, r.Value)
+			if err != nil {
+				return nil, err
+			}
+			output = append(output, v1beta1.PipelineResourceResult{
+				Key:        r.Key + KeySignatureSuffix,
+				Value:      base64.StdEncoding.EncodeToString(s),
+				ResultType: v1beta1.TaskRunResultType,
+			})
 		}
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        r.Key + KeySignatureSuffix,
-			Value:      base64.StdEncoding.EncodeToString(s),
-			ResultType: v1beta1.TaskRunResultType,
-		})
 	}
 	// get complete manifest of keys such that it can be verified
 	manifest := getManifest(results)
-	if manifest != "" {
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        KeyResultManifest,
-			Value:      manifest,
-			ResultType: v1beta1.TaskRunResultType,
-		})
-		manifestSig, err := signWithKey(xsvid, manifest)
-		if err != nil {
-			return nil, err
-		}
-		output = append(output, v1beta1.PipelineResourceResult{
-			Key:        KeyResultManifest + KeySignatureSuffix,
-			Value:      base64.StdEncoding.EncodeToString(manifestSig),
-			ResultType: v1beta1.TaskRunResultType,
-		})
+	output = append(output, v1beta1.PipelineResourceResult{
+		Key:        KeyResultManifest,
+		Value:      manifest,
+		ResultType: v1beta1.TaskRunResultType,
+	})
+	manifestSig, err := signWithKey(xsvid, manifest)
+	if err != nil {
+		return nil, err
 	}
+	output = append(output, v1beta1.PipelineResourceResult{
+		Key:        KeyResultManifest + KeySignatureSuffix,
+		Value:      base64.StdEncoding.EncodeToString(manifestSig),
+		ResultType: v1beta1.TaskRunResultType,
+	})
 
 	return output, nil
 }
@@ -96,6 +95,9 @@ func getManifest(results []v1beta1.PipelineResourceResult) string {
 	keys := []string{}
 	for _, r := range results {
 		if strings.HasSuffix(r.Key, KeySignatureSuffix) || r.Key == KeySVID || r.ResultType != v1beta1.TaskRunResultType {
+			continue
+		}
+		if r.ResultType != v1beta1.TaskRunResultType {
 			continue
 		}
 		keys = append(keys, r.Key)

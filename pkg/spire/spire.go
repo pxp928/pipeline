@@ -46,5 +46,6 @@ type SpireControllerApiClient interface {
 
 type SpireEntrypointerApiClient interface {
 	Close()
+	// Sign returns the signature material to be put in the PipelineResourceResult to append to the output results
 	Sign(ctx context.Context, results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error)
 }

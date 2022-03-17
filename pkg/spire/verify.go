@@ -241,7 +241,7 @@ func verifyManifest(results map[string]v1beta1.PipelineResourceResult) error {
 	s := strings.Split(manifest.Value, ",")
 	for _, key := range s {
 		_, found := results[key]
-		if !found {
+		if key != "" && !found {
 			return fmt.Errorf("no result found for %s but is part of the manifest %s", key, manifest.Value)
 		}
 	}
