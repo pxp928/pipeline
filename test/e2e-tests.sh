@@ -27,6 +27,8 @@ header "Setting up environment"
 
 install_pipeline_crd
 
+install_spire
+
 failed=0
 
 function set_feature_gate() {
