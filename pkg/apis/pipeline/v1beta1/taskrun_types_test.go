@@ -156,6 +156,17 @@ func TestTaskRunIsTaskRunResultVerified(t *testing.T) {
 	}
 }
 
+func TestTaskRunEmptyIsTaskRunResultVerified(t *testing.T) {
+	tr := &v1beta1.TaskRun{
+		Status: v1beta1.TaskRunStatus{
+			Status: duckv1beta1.Status{},
+		},
+	}
+	if tr.IsTaskRunResultVerified() {
+		t.Fatal("Expected false as no condition exists for SignedResultsVerified")
+	}
+}
+
 func TestTaskRunHasVolumeClaimTemplate(t *testing.T) {
 	tr := &v1beta1.TaskRun{
 		Spec: v1beta1.TaskRunSpec{

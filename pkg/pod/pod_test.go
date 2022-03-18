@@ -1870,9 +1870,6 @@ func TestPodBuildwithSpireEnabled(t *testing.T) {
 			}),
 			ActiveDeadlineSeconds: &defaultActiveDeadlineSeconds,
 		},
-		wantAnnotations: map[string]string{
-			SpiffeIdAnnotation: fmt.Sprintf("ns/%v/taskrun/%v", "default", "taskrun-name"),
-		},
 	}} {
 		t.Run(c.desc, func(t *testing.T) {
 			featureFlags := map[string]string{
