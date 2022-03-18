@@ -443,6 +443,11 @@ func (tr *TaskRun) IsCancelled() bool {
 	return tr.Spec.Status == TaskRunSpecStatusCancelled
 }
 
+// IsTaskRunResultVerified returns true if the TaskRun's results have been validated by spire.
+func (tr *TaskRun) IsTaskRunResultVerified() bool {
+	return tr.Status.GetCondition(apis.ConditionType(TaskRunConditionResultsVerified.String())).IsTrue()
+}
+
 // HasTimedOut returns true if the TaskRun runtime is beyond the allowed timeout
 func (tr *TaskRun) HasTimedOut(ctx context.Context, c clock.PassiveClock) bool {
 	if tr.Status.StartTime.IsZero() {

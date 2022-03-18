@@ -95,10 +95,7 @@ func signWithKey(xsvid *x509svid.SVID, value string) ([]byte, error) {
 func getManifest(results []v1beta1.PipelineResourceResult) string {
 	keys := []string{}
 	for _, r := range results {
-		if strings.HasSuffix(r.Key, KeySignatureSuffix) {
-			continue
-		}
-		if r.Key == KeySVID {
+		if strings.HasSuffix(r.Key, KeySignatureSuffix) || r.Key == KeySVID || r.ResultType != v1beta1.TaskRunResultType {
 			continue
 		}
 		keys = append(keys, r.Key)
