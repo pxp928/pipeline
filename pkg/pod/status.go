@@ -148,7 +148,7 @@ func MakeTaskRunStatus(ctx context.Context, logger *zap.SugaredLogger, tr v1beta
 
 func setTaskRunStatusBasedOnSpireVerification(ctx context.Context, logger *zap.SugaredLogger, tr *v1beta1.TaskRun, trs *v1beta1.TaskRunStatus, filteredResults []v1beta1.PipelineResourceResult, spireAPI spire.SpireControllerApiClient) {
 
-	if tr.IsSuccessful() && spireAPI != nil && len(trs.TaskRunResults) >= 1 {
+	if tr.IsSuccessful() && spireAPI != nil && len(tr.Status.TaskSpec.Results) >= 1 {
 		logger.Info("validating signed results with spire: ", trs.TaskRunResults)
 		if err := spireAPI.VerifyTaskRunResults(ctx, filteredResults, tr); err != nil {
 			logger.Errorf("failed to verify signed results with spire: %w", err)
