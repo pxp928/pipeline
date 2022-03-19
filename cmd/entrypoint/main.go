@@ -34,6 +34,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/credentials/dockercreds"
 	"github.com/tektoncd/pipeline/pkg/credentials/gitcreds"
 	"github.com/tektoncd/pipeline/pkg/entrypoint"
+	"github.com/tektoncd/pipeline/pkg/spire"
 	"github.com/tektoncd/pipeline/pkg/spire/config"
 	"github.com/tektoncd/pipeline/pkg/termination"
 )
@@ -124,8 +125,11 @@ func main() {
 		}
 	}
 
-	spireConfig := config.SpireConfig{
-		SocketPath: *socketPath,
+	var spireWorkloadApi spire.SpireEntrypointerApiClient
+	if socketPath != nil && *socketPath != "" {
+		spireWorkloadApi = spire.NewSpireEntrypointerApiClient(config.SpireConfig{
+			SocketPath: *socketPath,
+		})
 	}
 
 	e := entrypoint.Entrypointer{
@@ -142,7 +146,7 @@ func main() {
 		BreakpointOnFailure: *breakpointOnFailure,
 		OnError:             *onError,
 		StepMetadataDir:     *stepMetadataDir,
-		SpireConfig:         spireConfig,
+		SpireWorkloadAPI:    spireWorkloadApi,
 	}
 
 	// Copy any creds injected by the controller into the $HOME directory of the current
