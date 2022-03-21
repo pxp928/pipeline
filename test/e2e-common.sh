@@ -62,13 +62,13 @@ function install_spire() {
   kubectl create ns spire --dry-run=client -o yaml | kubectl apply -f -
 
   echo "Applying SPIFFE CSI Driver configuration..."
-  kubectl apply -f "$DIR"/yamls/spire/spiffe-csi-driver.yaml
+  kubectl apply -f "$DIR"/configs/spire/spiffe-csi-driver.yaml
 
   echo "Deploying SPIRE server"
-  kubectl apply -f "$DIR"/yamls/spire/spire-server.yaml
+  kubectl apply -f "$DIR"/configs/spire/spire-server.yaml
 
   echo "Deploying SPIRE agent"
-  kubectl apply -f "$DIR"/yamls/spire/spire-agent.yaml
+  kubectl apply -f "$DIR"/configs/spire/spire-agent.yaml
 
   wait_until_pods_running spire || fail_test "SPIRE did not come up"
 
