@@ -149,6 +149,8 @@ const (
 	TaskRunReasonResultsVerified TaskRunReason = "TaskRunResultsVerified"
 	// TaskRunReasonResultsFailed is the reason set when the TaskRun results are failed to verify by spire
 	TaskRunReasonsResultsVerificationFailed TaskRunReason = "TaskRunResultsVerificationFailed"
+	// AwaitingTaskRunResults is the reason set when waiting upon `TaskRun` results and signatures to verify
+	AwaitingTaskRunResults TaskRunReason = "AwaitingTaskRunResults"
 )
 
 func (t TaskRunReason) String() string {
@@ -432,6 +434,11 @@ func (tr *TaskRun) IsCancelled() bool {
 // IsTaskRunResultVerified returns true if the TaskRun's results have been validated by spire.
 func (tr *TaskRun) IsTaskRunResultVerified() bool {
 	return tr.Status.GetCondition(apis.ConditionType(TaskRunConditionResultsVerified.String())).IsTrue()
+}
+
+// IsTaskRunResultDone returns true if the TaskRun's results are available for verification
+func (tr *TaskRun) IsTaskRunResultDone() bool {
+	return !tr.Status.GetCondition(apis.ConditionType(TaskRunConditionResultsVerified.String())).IsUnknown()
 }
 
 // HasTimedOut returns true if the TaskRun runtime is beyond the allowed timeout
