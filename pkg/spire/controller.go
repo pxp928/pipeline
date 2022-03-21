@@ -88,6 +88,9 @@ func (sc *spireControllerApiClient) dial(ctx context.Context) error {
 }
 
 func NewSpireControllerApiClient(c spireconfig.SpireConfig) SpireControllerApiClient {
+	if c.MockSpire {
+		return &SpireMockClient{}
+	}
 	return &spireControllerApiClient{
 		config: c,
 	}

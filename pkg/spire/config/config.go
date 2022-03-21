@@ -29,6 +29,11 @@ type SpireConfig struct {
 	SocketPath      string
 	ServerAddr      string
 	NodeAliasPrefix string
+
+	// MockSpire only to be used for testing the controller, will not exhibit
+	// all characteristics of spire since it is only being used in the context
+	// of process memory.
+	MockSpire bool
 }
 
 // Validate returns an error if any image is not set.
