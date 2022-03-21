@@ -167,6 +167,38 @@ func TestTaskRunEmptyIsTaskRunResultVerified(t *testing.T) {
 	}
 }
 
+func TestTaskRunIsTaskRunResultDone(t *testing.T) {
+	tr := &v1beta1.TaskRun{
+		Status: v1beta1.TaskRunStatus{
+			Status: duckv1beta1.Status{
+				Conditions: []apis.Condition{{
+					Type:    apis.ConditionType(v1beta1.TaskRunConditionResultsVerified.String()),
+					Status:  corev1.ConditionUnknown,
+					Reason:  v1beta1.AwaitingTaskRunResults.String(),
+					Message: "Waiting upon TaskRun results and signatures to verify",
+				}},
+			},
+		},
+	}
+	if tr.IsTaskRunResultDone() {
+		t.Fatal("Expected pipelinerun status to be unknown and waiting")
+	}
+	if tr.Status.GetCondition(apis.ConditionType(v1beta1.TaskRunConditionResultsVerified.String())).Reason != v1beta1.AwaitingTaskRunResults.String() {
+		t.Fatal("Expected pipelinerun status reason to be AwaitingTaskRunResults")
+	}
+}
+
+func TestTaskRunEmptyIsTaskRunResultDone(t *testing.T) {
+	tr := &v1beta1.TaskRun{
+		Status: v1beta1.TaskRunStatus{
+			Status: duckv1beta1.Status{},
+		},
+	}
+	if tr.IsTaskRunResultDone() {
+		t.Fatal("Expected false as no condition exists for SignedResultsVerified")
+	}
+}
+
 func TestTaskRunHasVolumeClaimTemplate(t *testing.T) {
 	tr := &v1beta1.TaskRun{
 		Spec: v1beta1.TaskRunSpec{
