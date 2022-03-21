@@ -105,7 +105,7 @@ func MakeTaskRunStatus(ctx context.Context, logger *zap.SugaredLogger, tr v1beta
 		// If the taskRunStatus doesn't exist yet, it's because we just started running
 		markStatusRunning(trs, v1beta1.TaskRunReasonRunning.String(), "Not all Steps in the Task have finished executing")
 
-		if spireEnabled {
+		if spireEnabled && len(trs.TaskRunResults) >= 1 {
 			markStatusSignedResultsRunning(trs)
 		}
 	}
@@ -342,7 +342,7 @@ func updateIncompleteTaskRunStatus(trs *v1beta1.TaskRunStatus, pod *corev1.Pod, 
 	switch pod.Status.Phase {
 	case corev1.PodRunning:
 		markStatusRunning(trs, v1beta1.TaskRunReasonRunning.String(), "Not all Steps in the Task have finished executing")
-		if spireEnabled {
+		if spireEnabled && len(trs.TaskRunResults) >= 1 {
 			markStatusSignedResultsRunning(trs)
 		}
 	case corev1.PodPending:
@@ -353,7 +353,7 @@ func updateIncompleteTaskRunStatus(trs *v1beta1.TaskRunStatus, pod *corev1.Pod, 
 			markStatusFailure(trs, ReasonCreateContainerConfigError, "Failed to create pod due to config error")
 		default:
 			markStatusRunning(trs, ReasonPending, getWaitingMessage(pod))
-			if spireEnabled {
+			if spireEnabled && len(trs.TaskRunResults) >= 1 {
 				markStatusSignedResultsRunning(trs)
 			}
 		}
