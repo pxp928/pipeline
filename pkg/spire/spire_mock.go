@@ -81,6 +81,9 @@ func (_ *SpireMockClient) GetIdentity(tr *v1beta1.TaskRun) string {
 }
 
 func (sc *SpireMockClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
+	if sc.AppendStatusInternalAnnotationOverride != nil {
+		return sc.AppendStatusInternalAnnotationOverride(ctx, tr)
+	}
 	// Add status hash
 	currentHash, err := hashTaskrunStatusInternal(tr)
 	if err != nil {
