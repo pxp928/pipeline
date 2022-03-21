@@ -104,6 +104,10 @@ func MakeTaskRunStatus(ctx context.Context, logger *zap.SugaredLogger, tr v1beta
 	if trs.GetCondition(apis.ConditionSucceeded) == nil || trs.GetCondition(apis.ConditionSucceeded).Status == corev1.ConditionUnknown {
 		// If the taskRunStatus doesn't exist yet, it's because we just started running
 		markStatusRunning(trs, v1beta1.TaskRunReasonRunning.String(), "Not all Steps in the Task have finished executing")
+
+		if spireEnabled {
+			markStatusSignedResultsRunning(trs)
+		}
 	}
 
 	sortPodContainerStatuses(pod.Status.ContainerStatuses, pod.Spec.Containers)
@@ -113,7 +117,7 @@ func MakeTaskRunStatus(ctx context.Context, logger *zap.SugaredLogger, tr v1beta
 	if complete {
 		updateCompletedTaskRunStatus(logger, trs, pod)
 	} else {
-		updateIncompleteTaskRunStatus(trs, pod)
+		updateIncompleteTaskRunStatus(trs, pod, spireEnabled)
 	}
 
 	trs.PodName = pod.Name
@@ -334,10 +338,13 @@ func updateCompletedTaskRunStatus(logger *zap.SugaredLogger, trs *v1beta1.TaskRu
 	trs.CompletionTime = &metav1.Time{Time: time.Now()}
 }
 
-func updateIncompleteTaskRunStatus(trs *v1beta1.TaskRunStatus, pod *corev1.Pod) {
+func updateIncompleteTaskRunStatus(trs *v1beta1.TaskRunStatus, pod *corev1.Pod, spireEnabled bool) {
 	switch pod.Status.Phase {
 	case corev1.PodRunning:
 		markStatusRunning(trs, v1beta1.TaskRunReasonRunning.String(), "Not all Steps in the Task have finished executing")
+		if spireEnabled {
+			markStatusSignedResultsRunning(trs)
+		}
 	case corev1.PodPending:
 		switch {
 		case IsPodExceedingNodeResources(pod):
@@ -346,6 +353,9 @@ func updateIncompleteTaskRunStatus(trs *v1beta1.TaskRunStatus, pod *corev1.Pod) 
 			markStatusFailure(trs, ReasonCreateContainerConfigError, "Failed to create pod due to config error")
 		default:
 			markStatusRunning(trs, ReasonPending, getWaitingMessage(pod))
+			if spireEnabled {
+				markStatusSignedResultsRunning(trs)
+			}
 		}
 	}
 }
@@ -512,6 +522,16 @@ func markStatusSignedResultsFailure(trs *v1beta1.TaskRunStatus, message string) 
 		Status:  corev1.ConditionFalse,
 		Reason:  v1beta1.TaskRunReasonsResultsVerificationFailed.String(),
 		Message: message,
+	})
+}
+
+// markStatusRunning sets taskrun status to running
+func markStatusSignedResultsRunning(trs *v1beta1.TaskRunStatus) {
+	trs.SetCondition(&apis.Condition{
+		Type:    apis.ConditionType(v1beta1.TaskRunConditionResultsVerified.String()),
+		Status:  corev1.ConditionUnknown,
+		Reason:  v1beta1.AwaitingTaskRunResults.String(),
+		Message: "Waiting upon TaskRun results and signatures to verify",
 	})
 }
 
