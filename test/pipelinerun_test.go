@@ -430,7 +430,6 @@ spec:
 		if err != nil {
 			t.Fatalf("Error listing TaskRuns for PipelineRun %s: %s", prName, err)
 		}
-
 		for _, taskrunItem := range taskrunList.Items {
 			spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
 			spireShouldPassSpireAnnotation(&taskrunItem, t)
@@ -543,7 +542,6 @@ spec:
 		if err != nil {
 			t.Fatalf("Error listing TaskRuns for PipelineRun %s: %s", prName, err)
 		}
-
 		for _, taskrunItem := range taskrunList.Items {
 			spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
 			spireShouldPassSpireAnnotation(&taskrunItem, t)

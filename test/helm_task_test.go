@@ -1,3 +1,4 @@
+//go:build e2e
 // +build e2e
 
 /*
@@ -123,7 +124,6 @@ func helmDeploytest(t *testing.T, spireEnabled bool) {
 		if err != nil {
 			t.Fatalf("Error listing TaskRuns for PipelineRun %s: %s", helmDeployPipelineRunName, err)
 		}
-
 		for _, taskrunItem := range taskrunList.Items {
 			spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
 			spireShouldPassSpireAnnotation(&taskrunItem, t)
