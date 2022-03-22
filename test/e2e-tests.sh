@@ -25,9 +25,9 @@ initialize $@
 
 header "Setting up environment"
 
-install_pipeline_crd
-
 install_spire
+
+install_pipeline_crd
 
 failed=0
 
