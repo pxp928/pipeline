@@ -29,6 +29,8 @@ install_spire
 
 install_pipeline_crd
 
+patch_pipline_spire
+
 failed=0
 
 function set_feature_gate() {

@@ -306,7 +306,9 @@ func spireShouldPassSpireAnnotation(tr *v1beta1.TaskRun, t *testing.T) {
 
 // Verifies if the taskrun status annotation does contain "not-verified"
 func spireShouldFailSpireAnnotation(tr *v1beta1.TaskRun, t *testing.T) {
-	if _, notVerified := tr.Status.Annotations[spire.NotVerifiedAnnotation]; !notVerified {
+	_, notVerified := tr.Status.Annotations[spire.NotVerifiedAnnotation]
+	_, hash := tr.Status.Annotations[spire.TaskRunStatusHashAnnotation]
+	if !notVerified && hash {
 		t.Errorf("Taskrun `%s` status should be not verified. Missing Annotation tekton.dev/not-verified = yes", tr.Name)
 	}
 }

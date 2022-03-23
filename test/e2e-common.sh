@@ -59,7 +59,7 @@ function install_spire() {
   DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
   echo "Creating SPIRE namespace..."
-  kubectl create ns spire --dry-run=client -o yaml | kubectl apply -f -
+  kubectl create ns spire
 
   echo "Applying SPIFFE CSI Driver configuration..."
   kubectl apply -f "$DIR"/testdata/spire/spiffe-csi-driver.yaml
@@ -85,6 +85,15 @@ function install_spire() {
     -selector k8s:pod-label:app:tekton-pipelines-controller \
     -selector k8s:sa:tekton-pipelines-controller \
     -admin
+}
+
+function patch_pipline_spire() {
+  kubectl patch \
+      deployment tekton-pipelines-controller \
+      -n tekton-pipelines \
+      --patch-file "$DIR"/testdata/patch/pipeline-controller-spire.json
+      
+  verify_pipeline_installation
 }
 
 
