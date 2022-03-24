@@ -32,7 +32,6 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/spire"
-	"github.com/tektoncd/pipeline/pkg/spire/config"
 	"github.com/tektoncd/pipeline/pkg/termination"
 	"go.uber.org/zap"
 )
@@ -82,10 +81,10 @@ type Entrypointer struct {
 	OnError string
 	// StepMetadataDir is the directory for a step where the step related metadata can be stored
 	StepMetadataDir string
-	// Spire configration that includes the spire socket to connect to
-	SpireConfig config.SpireConfig
 	// SpireWorkloadAPI connects to spire and does obtains SVID based on taskrun
-	SpireWorkloadAPI *spire.SpireEntrypointerApiClient
+	SpireWorkloadAPI spire.SpireEntrypointerApiClient
+	// ResultsDirectory is the directory to find results, defaults to pipeline.DefaultResultPath
+	ResultsDirectory string
 }
 
 // Waiter encapsulates waiting for files to exist.
@@ -144,9 +143,6 @@ func (e Entrypointer) Go() error {
 
 	ctx := context.Background()
 	var err error = nil
-	if e.SpireConfig.SocketPath != "" {
-		e.SpireWorkloadAPI = spire.NewSpireEntrypointerApiClient(e.SpireConfig)
-	}
 
 	if e.Timeout != nil && *e.Timeout < time.Duration(0) {
 		err = fmt.Errorf("negative timeout specified")
@@ -208,7 +204,12 @@ func (e Entrypointer) readResultsFromDisk(ctx context.Context) error {
 		if resultFile == "" {
 			continue
 		}
-		fileContents, err := ioutil.ReadFile(filepath.Join(pipeline.DefaultResultPath, resultFile))
+
+		resultPath := pipeline.DefaultResultPath
+		if e.ResultsDirectory != "" {
+			resultPath = e.ResultsDirectory
+		}
+		fileContents, err := ioutil.ReadFile(filepath.Join(resultPath, resultFile))
 		if os.IsNotExist(err) {
 			continue
 		} else if err != nil {
