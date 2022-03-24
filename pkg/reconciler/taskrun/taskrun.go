@@ -68,7 +68,7 @@ type Reconciler struct {
 	KubeClientSet     kubernetes.Interface
 	PipelineClientSet clientset.Interface
 	Images            pipeline.Images
-	SpireClient       *spire.SpireControllerApiClient
+	SpireClient       spire.SpireControllerApiClient
 	Clock             clock.PassiveClock
 
 	// listers index properties about resources
@@ -275,7 +275,8 @@ func (c *Reconciler) finishReconcileUpdateEmitEvents(ctx context.Context, tr *v1
 
 	var err error
 	// Add status internal annotations hash only if it was verified
-	if c.SpireClient != nil && c.SpireClient.CheckSpireVerifiedFlag(tr) {
+	if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire &&
+		c.SpireClient != nil && c.SpireClient.CheckSpireVerifiedFlag(tr) {
 		if err := spire.CheckStatusInternalAnnotation(tr); err != nil {
 			err = c.SpireClient.AppendStatusInternalAnnotation(ctx, tr)
 			if err != nil {
