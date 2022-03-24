@@ -1,3 +1,4 @@
+//go:build e2e
 // +build e2e
 
 /*
@@ -28,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/tektoncd/pipeline/test/diff"
 
+	"github.com/tektoncd/pipeline/pkg/apis/config"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1alpha1"
 
 	"github.com/tektoncd/pipeline/pkg/reconciler/pipelinerun/resources"
@@ -48,12 +50,25 @@ var requireAlphaFeatureFlags = requireAnyGate(map[string]string{
 })
 
 func TestPipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure(t *testing.T) {
+	pipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure_WithOptions(t, false)
+}
+
+func TestWithSpirePipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure(t *testing.T) {
+	pipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure_WithOptions(t, true)
+}
+
+func pipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure_WithOptions(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	c, namespace := setup(ctx, t)
 	knativetest.CleanupOnInterrupt(func() { tearDown(ctx, t, c, namespace) }, t.Logf)
 	defer tearDown(ctx, t, c, namespace)
+
+	if spireEnabled {
+		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
+		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
+	}
 
 	cond := getCondition(t, namespace)
 	if _, err := c.ConditionClient.Create(ctx, cond, metav1.CreateOptions{}); err != nil {
@@ -266,30 +281,61 @@ spec:
 			if !isFailed(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("dag task %s should have failed", n)
 			}
+			if spireEnabled {
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 			dagTask1EndTime = taskrunItem.Status.CompletionTime
 		case n == "dagtask2":
 			if err := WaitForTaskRunState(ctx, c, taskrunItem.Name, TaskRunSucceed(taskrunItem.Name), "TaskRunSuccess"); err != nil {
 				t.Errorf("Error waiting for TaskRun to succeed: %v", err)
+			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 			dagTask2EndTime = taskrunItem.Status.CompletionTime
 		case n == "dagtask3":
 			if !isSkipped(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("dag task %s should have skipped due to condition failure", n)
 			}
+			if spireEnabled {
+				// Skipped due to condition so status annotations should be there. Results should not be verified as not run
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 		case n == "dagtask4":
+			if spireEnabled {
+				// Skipped so status annotations should not be there. Results should not be verified as not run
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
+			}
 			t.Fatalf("task %s should have skipped due to when expression", n)
 		case n == "dagtask5":
 			if err := WaitForTaskRunState(ctx, c, taskrunItem.Name, TaskRunSucceed(taskrunItem.Name), "TaskRunSuccess"); err != nil {
 				t.Errorf("Error waiting for TaskRun to succeed: %v", err)
 			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 		case n == "finaltask1":
 			if err := WaitForTaskRunState(ctx, c, taskrunItem.Name, TaskRunSucceed(taskrunItem.Name), "TaskRunSuccess"); err != nil {
 				t.Errorf("Error waiting for TaskRun to succeed: %v", err)
+			}
+			if spireEnabled {
+				// Fails due to function appending empty results with no entry. Even though taskrun is success results verification will fail
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 			finalTaskStartTime = taskrunItem.Status.StartTime
 		case n == "finaltask2":
 			if err := WaitForTaskRunState(ctx, c, taskrunItem.Name, TaskRunSucceed(taskrunItem.Name), "TaskRunSuccess"); err != nil {
 				t.Errorf("Error waiting for TaskRun to succeed: %v", err)
+			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 			for _, p := range taskrunItem.Spec.Params {
 				switch param := p.Name; param {
@@ -316,6 +362,10 @@ spec:
 			if err := WaitForTaskRunState(ctx, c, taskrunItem.Name, TaskRunSucceed(taskrunItem.Name), "TaskRunSuccess"); err != nil {
 				t.Errorf("Error waiting for TaskRun to succeed: %v", err)
 			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 			for _, p := range taskrunItem.Spec.Params {
 				if p.Name == "dagtask-result" && p.Value.StringVal != "Hello" {
 					t.Errorf("Error resolving task result reference in a finally task %s", n)
@@ -325,13 +375,31 @@ spec:
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("final task %s should have succeeded", n)
 			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 		case n == "guardedfinaltaskusingdagtask5status1":
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("final task %s should have succeeded", n)
 			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 		case n == "guardedfinaltaskusingdagtask5result2":
+			if spireEnabled {
+				// Skipped so status annotations should not be there. Results should not be verified as not run
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
+			}
 			t.Fatalf("final task %s should have skipped due to when expression evaluating to false", n)
 		case n == "finaltaskconsumingdagtask1" || n == "finaltaskconsumingdagtask4" || n == "guardedfinaltaskconsumingdagtask4":
+			if spireEnabled {
+				// Skipped so status annotations should not be there. Results should not be verified as not run
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
+			}
 			t.Fatalf("final task %s should have skipped due to missing task result reference", n)
 		default:
 			t.Fatalf("Found unexpected taskRun %s", n)
@@ -392,12 +460,25 @@ spec:
 }
 
 func TestPipelineLevelFinally_OneFinalTaskFailed_Failure(t *testing.T) {
+	pipelineLevelFinally_OneFinalTaskFailed_Failure_WithOptions(t, false)
+}
+
+func TestWithSpirePipelineLevelFinally_OneFinalTaskFailed_Failure(t *testing.T) {
+	pipelineLevelFinally_OneFinalTaskFailed_Failure_WithOptions(t, true)
+}
+
+func pipelineLevelFinally_OneFinalTaskFailed_Failure_WithOptions(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	c, namespace := setup(ctx, t)
 	knativetest.CleanupOnInterrupt(func() { tearDown(ctx, t, c, namespace) }, t.Logf)
 	defer tearDown(ctx, t, c, namespace)
+
+	if spireEnabled {
+		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
+		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
+	}
 
 	task := getSuccessTask(t, namespace)
 	if _, err := c.TaskClient.Create(ctx, task, metav1.CreateOptions{}); err != nil {
@@ -449,9 +530,17 @@ spec:
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("dag task %s should have succeeded", n)
 			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 		case n == "finaltask1":
 			if !isFailed(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("final task %s should have failed", n)
+			}
+			if spireEnabled {
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		default:
 			t.Fatalf("TaskRuns were not found for both final and dag tasks")
@@ -460,12 +549,25 @@ spec:
 }
 
 func TestPipelineLevelFinally_OneFinalTask_CancelledRunFinally(t *testing.T) {
+	pipelineLevelFinally_OneFinalTask_CancelledRunFinally_WithOptions(t, false)
+}
+
+func TestWithSpirePipelineLevelFinally_OneFinalTask_CancelledRunFinally(t *testing.T) {
+	pipelineLevelFinally_OneFinalTask_CancelledRunFinally_WithOptions(t, true)
+}
+
+func pipelineLevelFinally_OneFinalTask_CancelledRunFinally_WithOptions(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	c, namespace := setup(ctx, t, requireAlphaFeatureFlags)
 	knativetest.CleanupOnInterrupt(func() { tearDown(ctx, t, c, namespace) }, t.Logf)
 	defer tearDown(ctx, t, c, namespace)
+
+	if spireEnabled {
+		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
+		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
+	}
 
 	task1 := getDelaySuccessTaskProducingResults(t, namespace)
 	task1.Spec.Results = append(task1.Spec.Results, v1beta1.TaskResult{
@@ -560,13 +662,29 @@ spec:
 			if !isCancelled(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("dag task %s should have been cancelled", n)
 			}
+			if spireEnabled {
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 		case "dagtask2":
+			if spireEnabled {
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
+			}
 			t.Fatalf("second dag task %s should be skipped as it depends on the result from cancelled 'dagtask1'", n)
 		case "finaltask1":
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("first final task %s should have succeeded", n)
 			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 		case "finaltask2":
+			if spireEnabled {
+				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
+			}
 			t.Fatalf("second final task %s should be skipped as it depends on the result from cancelled 'dagtask1'", n)
 		default:
 			t.Fatalf("TaskRuns were not found for both final and dag tasks")
@@ -575,12 +693,25 @@ spec:
 }
 
 func TestPipelineLevelFinally_OneFinalTask_StoppedRunFinally(t *testing.T) {
+	pipelineLevelFinally_OneFinalTask_StoppedRunFinally_WithOptions(t, false)
+}
+
+func TestWithSpirePipelineLevelFinally_OneFinalTask_StoppedRunFinally(t *testing.T) {
+	pipelineLevelFinally_OneFinalTask_StoppedRunFinally_WithOptions(t, true)
+}
+
+func pipelineLevelFinally_OneFinalTask_StoppedRunFinally_WithOptions(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	c, namespace := setup(ctx, t, requireAlphaFeatureFlags)
 	knativetest.CleanupOnInterrupt(func() { tearDown(ctx, t, c, namespace) }, t.Logf)
 	defer tearDown(ctx, t, c, namespace)
+
+	if spireEnabled {
+		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
+		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
+	}
 
 	task1 := getDelaySuccessTaskProducingResults(t, namespace)
 	task1.Spec.Results = append(task1.Spec.Results, v1beta1.TaskResult{
@@ -675,13 +806,25 @@ spec:
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("dag task %s should have succeeded", n)
 			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 		case "finaltask1":
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("first final task %s should have succeeded", n)
 			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
+			}
 		case "finaltask2":
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
 				t.Fatalf("second final task %s should have succeeded", n)
+			}
+			if spireEnabled {
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		default:
 			t.Fatalf("TaskRuns were not found for both final and dag tasks")

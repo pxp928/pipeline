@@ -80,4 +80,4 @@ data:
   # Setting this flag to "true" enables spire integration with pipeline.
   # This is an experimental feature and thus should still be considered
   # an alpha feature.
-  enable-spire: "true"
+  enable-spire: "false"
