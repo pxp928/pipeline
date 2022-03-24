@@ -25,8 +25,5 @@ data:
   enable-custom-tasks: "true"
   scope-when-expressions-to-task: "true"
   enable-api-fields: "alpha"
-<<<<<<< HEAD
   send-cloudevents-for-runs: "true"
-=======
   enable-spire: "true"
->>>>>>> 36d0cd6e3 (Unit-test with spire integration (#12))
