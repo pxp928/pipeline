@@ -88,9 +88,6 @@ spec:
           mountPath: /etc/config-logging
         - name: config-registry-cert
           mountPath: /etc/config-registry-cert
-        - name: spiffe-workload-api
-          mountPath: /spiffe-workload-api
-          readOnly: true
         env:
         - name: SYSTEM_NAMESPACE
           valueFrom:
@@ -157,9 +154,6 @@ spec:
         - name: config-registry-cert
           configMap:
             name: config-registry-cert
-        - name: spiffe-workload-api
-          csi:
-            driver: "csi.spiffe.io"
 ---
 apiVersion: v1
 kind: Service

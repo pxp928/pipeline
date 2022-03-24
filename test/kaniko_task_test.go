@@ -28,6 +28,7 @@ import (
 	"github.com/tektoncd/pipeline/test/parse"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/tektoncd/pipeline/pkg/apis/config"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1alpha1"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -46,6 +47,15 @@ const (
 
 // TestTaskRun is an integration test that will verify a TaskRun using kaniko
 func TestKanikoTaskRun(t *testing.T) {
+	kanikoTest(t, false)
+}
+
+// TestWithSpireKanikoTaskRun is an integration test that will verify a TaskRun using kaniko with Spire enabled
+func TestWithSpireKanikoTaskRun(t *testing.T) {
+	kanikoTest(t, true)
+}
+
+func kanikoTest(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -61,6 +71,11 @@ func TestKanikoTaskRun(t *testing.T) {
 
 	knativetest.CleanupOnInterrupt(func() { tearDown(ctx, t, c, namespace) }, t.Logf)
 	defer tearDown(ctx, t, c, namespace)
+
+	if spireEnabled {
+		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
+		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
+	}
 
 	t.Logf("Creating Git PipelineResource %s", kanikoGitResourceName)
 	if _, err := c.PipelineResourceClient.Create(ctx, getGitResource(t), metav1.CreateOptions{}); err != nil {
@@ -121,6 +136,11 @@ func TestKanikoTaskRun(t *testing.T) {
 
 	if revision != commit {
 		t.Fatalf("Expected remote commit to match local revision: %s, %s", commit, revision)
+	}
+
+	if spireEnabled {
+		spireShouldPassTaskRunResultsVerify(tr, t)
+		spireShouldPassSpireAnnotation(tr, t)
 	}
 
 	// match the local digest, which is first capture group against the remote image
