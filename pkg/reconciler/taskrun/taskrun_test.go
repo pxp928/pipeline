@@ -4316,7 +4316,7 @@ func TestStopSidecars_NoClientGetPodForTaskSpecWithoutRunningSidecars(t *testing
 }
 
 func TestReconcileOnTaskRunSign(t *testing.T) {
-	sc := &spire.SpireMockClient{}
+	sc := &spire.MockClient{}
 
 	taskSt := &apis.Condition{
 		Type:    apis.ConditionSucceeded,

@@ -187,14 +187,46 @@ spec:
     - name: bar
 ```
 
-And we can observe the results from the taskrun:
+
+An example termination message would be:
+```
+message: '[{"key":"RESULT_MANIFEST","value":"foo,bar","type":1},{"key":"RESULT_MANIFEST.sig","value":"MEQCIB4grfqBkcsGuVyoQd9KUVzNZaFGN6jQOKK90p5HWHqeAiB7yZerDA+YE3Af/ALG43DQzygiBpKhTt8gzWGmpvXJFw==","type":1},{"key":"SVID","value":"-----BEGIN
+        CERTIFICATE-----\nMIICCjCCAbCgAwIBAgIRALH94zAZZXdtPg97O5vG5M0wCgYIKoZIzj0EAwIwHjEL\nMAkGA1UEBhMCVVMxDzANBgNVBAoTBlNQSUZGRTAeFw0yMjAzMTQxNTUzNTlaFw0y\nMjAzMTQxNjU0MDlaMB0xCzAJBgNVBAYTAlVTMQ4wDAYDVQQKEwVTUElSRTBZMBMG\nByqGSM49AgEGCCqGSM49AwEHA0IABPLzFTDY0RDpjKb+eZCIWgUw9DViu8/pM8q7\nHMTKCzlyGqhaU80sASZfpkZvmi72w+gLszzwVI1ZNU5e7aCzbtSjgc8wgcwwDgYD\nVR0PAQH/BAQDAgOoMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNV\nHRMBAf8EAjAAMB0GA1UdDgQWBBSsUvspy+/Dl24pA1f+JuNVJrjgmTAfBgNVHSME\nGDAWgBSOMyOHnyLLGxPSD9RRFL+Yhm/6qzBNBgNVHREERjBEhkJzcGlmZmU6Ly9l\neGFtcGxlLm9yZy9ucy9kZWZhdWx0L3Rhc2tydW4vbm9uLWZhbHNpZmlhYmxlLXBy\nb3ZlbmFuY2UwCgYIKoZIzj0EAwIDSAAwRQIhAM4/bPAH9dyhBEj3DbwtJKMyEI56\n4DVrP97ps9QYQb23AiBiXWrQkvRYl0h4CX0lveND2yfqLrGdVL405O5NzCcUrA==\n-----END
+        CERTIFICATE-----\n","type":1},{"key":"bar","value":"world","type":1},{"key":"bar.sig","value":"MEUCIQDOtg+aEP1FCr6/FsHX+bY1d5abSQn2kTiUMg4Uic2lVQIgTVF5bbT/O77VxESSMtQlpBreMyw2GmKX2hYJlaOEH1M=","type":1},{"key":"foo","value":"hello","type":1},{"key":"foo.sig","value":"MEQCIBr+k0i7SRSyb4h96vQE9hhxBZiZb/2PXQqReOKJDl/rAiBrjgSsalwOvN0zgQay0xQ7PRbm5YSmI8tvKseLR8Ryww==","type":1}]'
+```
+
+Parsed, the fields woud be:
 - `RESULT_MANIFEST`: List of results that should be present, to prevent pick and choose attacks
 - `RESULT_MANIFEST.sig`: The signature of the result manifest
 - `SVID`: The x509 certificate that will be used to verify the signature trust chain to the authority
 - `*.sig`: The signature of each individual result output
 ```
-✗ tkn tr describe non-falisifiable-provenance
-Name:              non-falisifiable-provenance
+ ∙ RESULT_MANIFEST       foo,bar
+ ∙ RESULT_MANIFEST.sig   MEQCIB4grfqBkcsGuVyoQd9KUVzNZaFGN6jQOKK90p5HWHqeAiB7yZerDA+YE3Af/ALG43DQzygiBpKhTt8gzWGmpvXJFw==
+ ∙ SVID                  -----BEGIN CERTIFICATE-----
+MIICCjCCAbCgAwIBAgIRALH94zAZZXdtPg97O5vG5M0wCgYIKoZIzj0EAwIwHjEL
+MAkGA1UEBhMCVVMxDzANBgNVBAoTBlNQSUZGRTAeFw0yMjAzMTQxNTUzNTlaFw0y
+MjAzMTQxNjU0MDlaMB0xCzAJBgNVBAYTAlVTMQ4wDAYDVQQKEwVTUElSRTBZMBMG
+ByqGSM49AgEGCCqGSM49AwEHA0IABPLzFTDY0RDpjKb+eZCIWgUw9DViu8/pM8q7
+HMTKCzlyGqhaU80sASZfpkZvmi72w+gLszzwVI1ZNU5e7aCzbtSjgc8wgcwwDgYD
+VR0PAQH/BAQDAgOoMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjAMBgNV
+HRMBAf8EAjAAMB0GA1UdDgQWBBSsUvspy+/Dl24pA1f+JuNVJrjgmTAfBgNVHSME
+GDAWgBSOMyOHnyLLGxPSD9RRFL+Yhm/6qzBNBgNVHREERjBEhkJzcGlmZmU6Ly9l
+eGFtcGxlLm9yZy9ucy9kZWZhdWx0L3Rhc2tydW4vbm9uLWZhbHNpZmlhYmxlLXBy
+b3ZlbmFuY2UwCgYIKoZIzj0EAwIDSAAwRQIhAM4/bPAH9dyhBEj3DbwtJKMyEI56
+4DVrP97ps9QYQb23AiBiXWrQkvRYl0h4CX0lveND2yfqLrGdVL405O5NzCcUrA==
+-----END CERTIFICATE-----
+ ∙ bar       world
+ ∙ bar.sig   MEUCIQDOtg+aEP1FCr6/FsHX+bY1d5abSQn2kTiUMg4Uic2lVQIgTVF5bbT/O77VxESSMtQlpBreMyw2GmKX2hYJlaOEH1M=
+ ∙ foo       hello
+ ∙ foo.sig   MEQCIBr+k0i7SRSyb4h96vQE9hhxBZiZb/2PXQqReOKJDl/rAiBrjgSsalwOvN0zgQay0xQ7PRbm5YSmI8tvKseLR8Ryww==
+```
+
+
+However, the verification material be removed from the results as part of the TaskRun status:
+```console
+$ tkn tr describe non-falsifiable-provenance
+Name:              non-falsifiable-provenance
 Namespace:         default
 Service Account:   default
 Timeout:           1m0s
@@ -203,31 +235,14 @@ Labels:
 
 🌡️  Status
 
-STARTED        DURATION    STATUS
-1 minute ago   9 seconds   Succeeded
+STARTED          DURATION     STATUS
+38 seconds ago   36 seconds   Succeeded
 
 📝 Results
 
- NAME                    VALUE
- ∙ RESULT_MANIFEST       foo,bar,SVID,foo.sig,bar.sig
- ∙ RESULT_MANIFEST.sig   MEUCID6632K6axN2mFR5moRdLOMK5FGQPHs6NcQmkt3ViNOFAiEAlPmtn4xAse+C55cVwn7leHmkOnc/9XkiAluIO4bqFCk=
- ∙ SVID                  -----BEGIN CERTIFICATE-----
-MIICCTCCAbCgAwIBAgIQFRalR+bmSEWEjeLkYWuRuDAKBggqhkjOPQQDAjAeMQsw
-CQYDVQQGEwJVUzEPMA0GA1UEChMGU1BJRkZFMB4XDTIyMDIxNTE4MzIxN1oXDTIy
-MDIxNTE5MzIyN1owHTELMAkGA1UEBhMCVVMxDjAMBgNVBAoTBVNQSVJFMFkwEwYH
-KoZIzj0CAQYIKoZIzj0DAQcDQgAE3Kwl9WL3Omm48IuxMa+YkeuhvKT3CLv4FDoD
-yv2rojYfH5kF3Gt3p2UfKtmuwzZUIDucBnqLD0O1bTlhbLTnmqOB0DCBzTAOBgNV
-HQ8BAf8EBAMCA6gwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMAwGA1Ud
-EwEB/wQCMAAwHQYDVR0OBBYEFKDpNILi3XP5HxqX4TVa+g5qs+s1MB8GA1UdIwQY
-MBaAFGaBWVKKGXAh6hBkz34k1dYG1mM0ME4GA1UdEQRHMEWGQ3NwaWZmZTovL2V4
-YW1wbGUub3JnL25zL2RlZmF1bHQvdGFza3J1bi9ub24tZmFsaXNpZmlhYmxlLXBy
-b3ZlbmFuY2UwCgYIKoZIzj0EAwIDRwAwRAIgVPUB8nUwVk4l/LYThG/7k4iUxd8x
-xw7CMy/XbIPhMaACIBYxD3fRyR4O+3No7rYsiy3nwgszo9nZQyn1aZO7fujA
------END CERTIFICATE-----
+ NAME        VALUE
  ∙ bar       world
- ∙ bar.sig   MEUCIQDBv7TB56RcGqUAm6wgITllmcq45SSVuTfDpXGDTYU4GgIgUTHJld7peWgB+xhMiowsuGdJbPIFVHnFe/rjawSsMBs=
  ∙ foo       hello
- ∙ foo.sig   MEUCIQDZj4Abu0s4xbCgoNABTT/cD3OU+o7ixoxo4ChYB9oMXwIgf8wx1Etpd7qU4n47iHkqzZ4n9tonPRhWr7BOPNPvOqU=
 
 🦶 Steps
 

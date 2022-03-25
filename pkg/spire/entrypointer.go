@@ -27,31 +27,31 @@ import (
 	spireconfig "github.com/tektoncd/pipeline/pkg/spire/config"
 )
 
-type spireEntrypointerApiClient struct {
+type spireEntrypointerAPIClient struct {
 	config spireconfig.SpireConfig
 	client *workloadapi.Client
 }
 
-func (w *spireEntrypointerApiClient) checkClient(ctx context.Context) error {
+func (w *spireEntrypointerAPIClient) checkClient(ctx context.Context) error {
 	if w.client == nil {
 		return w.dial(ctx)
 	}
 	return nil
 }
 
-func (w *spireEntrypointerApiClient) dial(ctx context.Context) error {
+func (w *spireEntrypointerAPIClient) dial(ctx context.Context) error {
 	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix://"+w.config.SocketPath))
 	if err != nil {
-		return errors.Wrap(err, "Spire workload API not initalized due to error")
+		return errors.Wrap(err, "Spire workload API not initialized due to error")
 	}
 	w.client = client
 	return nil
 }
 
-func (w *spireEntrypointerApiClient) getxsvid(ctx context.Context) *x509svid.SVID {
+func (w *spireEntrypointerAPIClient) getxsvid(ctx context.Context) *x509svid.SVID {
 	backoffSeconds := 2
-	var xsvid *x509svid.SVID = nil
-	var err error = nil
+	var xsvid *x509svid.SVID
+	var err error
 	for i := 0; i < 20; i += backoffSeconds {
 		xsvid, err = w.client.FetchX509SVID(ctx)
 		if err == nil {
@@ -62,13 +62,14 @@ func (w *spireEntrypointerApiClient) getxsvid(ctx context.Context) *x509svid.SVI
 	return xsvid
 }
 
-func NewSpireEntrypointerApiClient(c spireconfig.SpireConfig) SpireEntrypointerApiClient {
-	return &spireEntrypointerApiClient{
+// NewSpireEntrypointerAPIClient creates a new spireEntrypointerApiClient for the entrypointer
+func NewSpireEntrypointerAPIClient(c spireconfig.SpireConfig) EntrypointerAPIClient {
+	return &spireEntrypointerAPIClient{
 		config: c,
 	}
 }
 
-func (w *spireEntrypointerApiClient) Close() {
+func (w *spireEntrypointerAPIClient) Close() {
 	err := w.client.Close()
 	if err != nil {
 		// Log error

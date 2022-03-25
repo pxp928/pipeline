@@ -82,7 +82,7 @@ type Entrypointer struct {
 	// StepMetadataDir is the directory for a step where the step related metadata can be stored
 	StepMetadataDir string
 	// SpireWorkloadAPI connects to spire and does obtains SVID based on taskrun
-	SpireWorkloadAPI spire.SpireEntrypointerApiClient
+	SpireWorkloadAPI spire.EntrypointerAPIClient
 	// ResultsDirectory is the directory to find results, defaults to pipeline.DefaultResultPath
 	ResultsDirectory string
 }
@@ -142,7 +142,7 @@ func (e Entrypointer) Go() error {
 	})
 
 	ctx := context.Background()
-	var err error = nil
+	var err error
 
 	if e.Timeout != nil && *e.Timeout < time.Duration(0) {
 		err = fmt.Errorf("negative timeout specified")

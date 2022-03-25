@@ -28,12 +28,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// SpireMockClient is a client used for mocking the this package for unit testing
+// MockClient is a client used for mocking the this package for unit testing
 // other tekton components that use the spire entrypointer or controller client.
 //
-// The SpireMockClient implements both SpireControllerApiClient and SpireEntrypointerApiClient
+// The MockClient implements both SpireControllerApiClient and SpireEntrypointerApiClient
 // and in addition to that provides the helper functions to define and query internal state.
-type SpireMockClient struct {
+type MockClient struct {
 	// Entries is a dictionary of entries that mock the SPIRE server datastore (for function Sign only)
 	Entries map[string]bool
 
@@ -68,19 +68,21 @@ const (
 	controllerSvid = "CONTROLLER_SVID_DATA"
 )
 
-func (_ *SpireMockClient) mockSign(content, signedBy string) string {
+func (*MockClient) mockSign(content, signedBy string) string {
 	return fmt.Sprintf("signed-by-%s:%x", signedBy, sha256.Sum256([]byte(content)))
 }
 
-func (sc *SpireMockClient) mockVerify(content, sig, signedBy string) bool {
+func (sc *MockClient) mockVerify(content, sig, signedBy string) bool {
 	return sig == sc.mockSign(content, signedBy)
 }
 
-func (_ *SpireMockClient) GetIdentity(tr *v1beta1.TaskRun) string {
+// GetIdentity get the taskrun namespace and taskrun name that is used for signing and verifying in mocked spire
+func (*MockClient) GetIdentity(tr *v1beta1.TaskRun) string {
 	return fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name)
 }
 
-func (sc *SpireMockClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
+// AppendStatusInternalAnnotation creates the status annotations which are used by the controller to verify the status hash
+func (sc *MockClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
 	if sc.AppendStatusInternalAnnotationOverride != nil {
 		return sc.AppendStatusInternalAnnotationOverride(ctx, tr)
 	}
@@ -99,7 +101,8 @@ func (sc *SpireMockClient) AppendStatusInternalAnnotation(ctx context.Context, t
 	return nil
 }
 
-func (sc *SpireMockClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
+// CheckSpireVerifiedFlag checks if the not-verified status annotation is set which would result in spire verification failed
+func (sc *MockClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
 	if sc.CheckSpireVerifiedFlagOverride != nil {
 		return sc.CheckSpireVerifiedFlagOverride(tr)
 	}
@@ -110,7 +113,8 @@ func (sc *SpireMockClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
 	return false
 }
 
-func (sc *SpireMockClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
+// CreateEntries adds entries to the dictionary of entries that mock the SPIRE server datastore
+func (sc *MockClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
 	id := fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name)
 	if sc.Entries == nil {
 		sc.Entries = map[string]bool{}
@@ -119,7 +123,8 @@ func (sc *SpireMockClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRu
 	return nil
 }
 
-func (sc *SpireMockClient) DeleteEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
+// DeleteEntry removes the entry from the dictionary of entries that mock the SPIRE server datastore
+func (sc *MockClient) DeleteEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error {
 	id := fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name)
 	if sc.Entries != nil {
 		delete(sc.Entries, id)
@@ -127,7 +132,8 @@ func (sc *SpireMockClient) DeleteEntry(ctx context.Context, tr *v1beta1.TaskRun,
 	return nil
 }
 
-func (sc *SpireMockClient) VerifyStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error {
+// VerifyStatusInternalAnnotation checks that the internal status annotations are valid by the mocked spire client
+func (sc *MockClient) VerifyStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error {
 	if sc.VerifyStatusInternalAnnotationOverride != nil {
 		return sc.VerifyStatusInternalAnnotationOverride(ctx, tr, logger)
 	}
@@ -135,13 +141,12 @@ func (sc *SpireMockClient) VerifyStatusInternalAnnotation(ctx context.Context, t
 	if sc.VerifyAlwaysReturns != nil {
 		if *sc.VerifyAlwaysReturns {
 			return nil
-		} else {
-			return errors.New("failed to verify from mock VerifyAlwaysReturns")
 		}
+		return errors.New("failed to verify from mock VerifyAlwaysReturns")
 	}
 
 	if !sc.CheckSpireVerifiedFlag(tr) {
-		return errors.New("annotation tekton.dev/not-verified = yes. Failed spire verification.")
+		return errors.New("annotation tekton.dev/not-verified = yes failed spire verification")
 	}
 
 	annotations := tr.Status.Annotations
@@ -168,7 +173,8 @@ func (sc *SpireMockClient) VerifyStatusInternalAnnotation(ctx context.Context, t
 	return nil
 }
 
-func (sc *SpireMockClient) VerifyTaskRunResults(ctx context.Context, prs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
+// VerifyTaskRunResults checks that all the TaskRun results are valid by the mocked spire client
+func (sc *MockClient) VerifyTaskRunResults(ctx context.Context, prs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
 	if sc.VerifyTaskRunResultsOverride != nil {
 		return sc.VerifyTaskRunResultsOverride(ctx, prs, tr)
 	}
@@ -176,9 +182,8 @@ func (sc *SpireMockClient) VerifyTaskRunResults(ctx context.Context, prs []v1bet
 	if sc.VerifyAlwaysReturns != nil {
 		if *sc.VerifyAlwaysReturns {
 			return nil
-		} else {
-			return errors.New("failed to verify from mock VerifyAlwaysReturns")
 		}
+		return errors.New("failed to verify from mock VerifyAlwaysReturns")
 	}
 
 	resultMap := map[string]v1beta1.PipelineResourceResult{}
@@ -223,13 +228,14 @@ func (sc *SpireMockClient) VerifyTaskRunResults(ctx context.Context, prs []v1bet
 	return nil
 }
 
-func (sc *SpireMockClient) Sign(ctx context.Context, results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
+// Sign signs and appends signatures to the PipelineResourceResult based on the mocked spire client
+func (sc *MockClient) Sign(ctx context.Context, results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
 	if sc.SignOverride != nil {
 		return sc.SignOverride(ctx, results)
 	}
 
 	if len(sc.SignIdentities) == 0 {
-		return nil, errors.New("signIdentities empty, please provide identities to sign with the SpireMockClient.GetIdentity function")
+		return nil, errors.New("signIdentities empty, please provide identities to sign with the MockClient.GetIdentity function")
 	}
 
 	identity := sc.SignIdentities[0]
@@ -273,4 +279,5 @@ func (sc *SpireMockClient) Sign(ctx context.Context, results []v1beta1.PipelineR
 	return output, nil
 }
 
-func (sc *SpireMockClient) Close() {}
+// Close mock closing the spire client connection
+func (sc *MockClient) Close() {}

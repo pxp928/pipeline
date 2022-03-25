@@ -37,7 +37,8 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 )
 
-func (sc *spireControllerApiClient) VerifyTaskRunResults(ctx context.Context, prs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
+// VerifyTaskRunResults ensures that the TaskRun results are valid and have not been tampered with
+func (sc *spireControllerAPIClient) VerifyTaskRunResults(ctx context.Context, prs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
@@ -55,7 +56,7 @@ func (sc *spireControllerApiClient) VerifyTaskRunResults(ctx context.Context, pr
 		return err
 	}
 
-	trust, err := getTrustBundle(sc.workloadAPI, ctx)
+	trust, err := getTrustBundle(ctx, sc.workloadAPI)
 	if err != nil {
 		return err
 	}
@@ -72,7 +73,7 @@ func (sc *spireControllerApiClient) VerifyTaskRunResults(ctx context.Context, pr
 		return err
 	}
 
-	for key, _ := range resultMap {
+	for key := range resultMap {
 		if strings.HasSuffix(key, KeySignatureSuffix) {
 			continue
 		}
@@ -87,22 +88,21 @@ func (sc *spireControllerApiClient) VerifyTaskRunResults(ctx context.Context, pr
 	return nil
 }
 
-// Verify checks if the status has an SVID cert
-// it then verifies the provided signatures against the cert
-func (sc *spireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error {
+// VerifyStatusInternalAnnotation run multuple verification steps to ensure that the spire status annotations are valid
+func (sc *spireControllerAPIClient) VerifyStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
 	}
 
 	if !sc.CheckSpireVerifiedFlag(tr) {
-		return errors.New("annotation tekton.dev/not-verified = yes. Failed spire verification.")
+		return errors.New("annotation tekton.dev/not-verified = yes failed spire verification")
 	}
 
 	annotations := tr.Status.Annotations
 
 	// get trust bundle from spire server
-	trust, err := getTrustBundle(sc.workloadAPI, ctx)
+	trust, err := getTrustBundle(ctx, sc.workloadAPI)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (sc *spireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.C
 	}
 	logger.Info("Successfully verified signature")
 
-	// check current status hash vs annotation status hash by controller
+	// CheckStatusInternalAnnotation check current status hash vs annotation status hash by controller
 	if err := CheckStatusInternalAnnotation(tr); err != nil {
 		return err
 	}
@@ -138,7 +138,8 @@ func (sc *spireControllerApiClient) VerifyStatusInternalAnnotation(ctx context.C
 	return nil
 }
 
-func (sc *spireControllerApiClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
+// CheckSpireVerifiedFlag checks if the not-verified status annotation is set which would result in spire verification failed
+func (sc *spireControllerAPIClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
 	if _, notVerified := tr.Status.Annotations[NotVerifiedAnnotation]; !notVerified {
 		return true
 	}
@@ -153,6 +154,7 @@ func hashTaskrunStatusInternal(tr *v1beta1.TaskRun) (string, error) {
 	return fmt.Sprintf("%x", sha256.Sum256(s)), nil
 }
 
+// CheckStatusInternalAnnotation ensures that the internal status annotation hash and current status hash match
 func CheckStatusInternalAnnotation(tr *v1beta1.TaskRun) error {
 	// get stored hash of status
 	annotations := tr.Status.Annotations
@@ -185,7 +187,7 @@ func getSVID(resultMap map[string]v1beta1.PipelineResourceResult) (*x509.Certifi
 	return cert, nil
 }
 
-func getTrustBundle(client *workloadapi.Client, ctx context.Context) (*x509.CertPool, error) {
+func getTrustBundle(ctx context.Context, client *workloadapi.Client) (*x509.CertPool, error) {
 	x509set, err := client.FetchX509Bundles(ctx)
 	if err != nil {
 		return nil, err

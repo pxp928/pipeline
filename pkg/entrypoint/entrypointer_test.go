@@ -608,7 +608,7 @@ func createTmpDir(t *testing.T, name string) string {
 	return tmpDir
 }
 
-func getMockSpireClient(ctx context.Context) (spire.SpireEntrypointerApiClient, spire.SpireControllerApiClient, *v1beta1.TaskRun) {
+func getMockSpireClient(ctx context.Context) (spire.EntrypointerAPIClient, spire.ControllerAPIClient, *v1beta1.TaskRun) {
 	tr := &v1beta1.TaskRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "taskrun-example",
@@ -623,7 +623,7 @@ func getMockSpireClient(ctx context.Context) (spire.SpireEntrypointerApiClient, 
 		},
 	}
 
-	sc := &spire.SpireMockClient{}
+	sc := &spire.MockClient{}
 
 	_ = sc.CreateEntries(ctx, tr, nil, 10000)
 
