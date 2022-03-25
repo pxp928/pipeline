@@ -33,9 +33,9 @@ import (
 
 // Simple task run sign/verify
 func TestSpireMock_TaskRunSign(t *testing.T) {
-	spireMockClient := &SpireMockClient{}
+	spireMockClient := &MockClient{}
 	var (
-		cc SpireControllerApiClient = spireMockClient
+		cc ControllerAPIClient = spireMockClient
 	)
 
 	ctx := context.Background()
@@ -56,9 +56,9 @@ func TestSpireMock_TaskRunSign(t *testing.T) {
 
 // test CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool
 func TestSpireMock_CheckSpireVerifiedFlag(t *testing.T) {
-	spireMockClient := &SpireMockClient{}
+	spireMockClient := &MockClient{}
 	var (
-		cc SpireControllerApiClient = spireMockClient
+		cc ControllerAPIClient = spireMockClient
 	)
 
 	trs := testTaskRuns()
@@ -80,9 +80,9 @@ func TestSpireMock_CheckSpireVerifiedFlag(t *testing.T) {
 
 // Task run check signed status is not the same with two taskruns
 func TestSpireMock_CheckHashSimilarities(t *testing.T) {
-	spireMockClient := &SpireMockClient{}
+	spireMockClient := &MockClient{}
 	var (
-		cc SpireControllerApiClient = spireMockClient
+		cc ControllerAPIClient = spireMockClient
 	)
 
 	ctx := context.Background()
@@ -197,9 +197,9 @@ func TestSpireMock_CheckTamper(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		spireMockClient := &SpireMockClient{}
+		spireMockClient := &MockClient{}
 		var (
-			cc SpireControllerApiClient = spireMockClient
+			cc ControllerAPIClient = spireMockClient
 		)
 
 		ctx := context.Background()
@@ -243,10 +243,10 @@ func TestSpireMock_CheckTamper(t *testing.T) {
 
 // Task result sign and verify
 func TestSpireMock_TaskRunResultsSign(t *testing.T) {
-	spireMockClient := &SpireMockClient{}
+	spireMockClient := &MockClient{}
 	var (
-		cc SpireControllerApiClient   = spireMockClient
-		ec SpireEntrypointerApiClient = spireMockClient
+		cc ControllerAPIClient   = spireMockClient
+		ec EntrypointerAPIClient = spireMockClient
 	)
 
 	testCases := []struct {
@@ -326,10 +326,10 @@ func TestSpireMock_TaskRunResultsSign(t *testing.T) {
 
 // Task result sign, modify signature/content and verify
 func TestSpireMock_TaskRunResultsSignTamper(t *testing.T) {
-	spireMockClient := &SpireMockClient{}
+	spireMockClient := &MockClient{}
 	var (
-		cc SpireControllerApiClient   = spireMockClient
-		ec SpireEntrypointerApiClient = spireMockClient
+		cc ControllerAPIClient   = spireMockClient
+		ec EntrypointerAPIClient = spireMockClient
 	)
 
 	genPr := func() []v1beta1.PipelineResourceResult {

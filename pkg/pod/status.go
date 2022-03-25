@@ -99,7 +99,8 @@ func SidecarsReady(podStatus corev1.PodStatus) bool {
 }
 
 // MakeTaskRunStatus returns a TaskRunStatus based on the Pod's status.
-func MakeTaskRunStatus(ctx context.Context, logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev1.Pod, spireEnabled bool, spireAPI spire.SpireControllerApiClient) (v1beta1.TaskRunStatus, error) {
+func MakeTaskRunStatus(ctx context.Context, logger *zap.SugaredLogger, tr v1beta1.TaskRun, pod *corev1.Pod, spireEnabled bool,
+	spireAPI spire.ControllerAPIClient) (v1beta1.TaskRunStatus, error) {
 	trs := &tr.Status
 	if trs.GetCondition(apis.ConditionSucceeded) == nil || trs.GetCondition(apis.ConditionSucceeded).Status == corev1.ConditionUnknown {
 		// If the taskRunStatus doesn't exist yet, it's because we just started running
@@ -146,7 +147,8 @@ func MakeTaskRunStatus(ctx context.Context, logger *zap.SugaredLogger, tr v1beta
 	return *trs, merr.ErrorOrNil()
 }
 
-func setTaskRunStatusBasedOnSpireVerification(ctx context.Context, logger *zap.SugaredLogger, tr *v1beta1.TaskRun, trs *v1beta1.TaskRunStatus, filteredResults []v1beta1.PipelineResourceResult, spireAPI spire.SpireControllerApiClient) {
+func setTaskRunStatusBasedOnSpireVerification(ctx context.Context, logger *zap.SugaredLogger, tr *v1beta1.TaskRun, trs *v1beta1.TaskRunStatus,
+	filteredResults []v1beta1.PipelineResourceResult, spireAPI spire.ControllerAPIClient) {
 
 	if tr.IsSuccessful() && spireAPI != nil &&
 		((tr.Status.TaskSpec != nil && len(tr.Status.TaskSpec.Results) >= 1) || len(filteredResults) >= 1) {
@@ -155,7 +157,7 @@ func setTaskRunStatusBasedOnSpireVerification(ctx context.Context, logger *zap.S
 			logger.Errorf("failed to verify signed results with spire: %w", err)
 			markStatusSignedResultsFailure(trs, err.Error())
 		} else {
-			logger.Info("successfuly validated signed results with spire")
+			logger.Info("successfully validated signed results with spire")
 			markStatusSignedResultsVerified(trs)
 		}
 	}
@@ -167,7 +169,7 @@ func setTaskRunStatusBasedOnSpireVerification(ctx context.Context, logger *zap.S
 }
 
 func setTaskRunStatusBasedOnStepStatus(ctx context.Context, logger *zap.SugaredLogger, stepStatuses []corev1.ContainerStatus, tr *v1beta1.TaskRun,
-	spireEnabled bool, spireAPI spire.SpireControllerApiClient) *multierror.Error {
+	spireEnabled bool, spireAPI spire.ControllerAPIClient) *multierror.Error {
 
 	trs := &tr.Status
 	var merr *multierror.Error

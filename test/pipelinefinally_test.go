@@ -50,14 +50,14 @@ var requireAlphaFeatureFlags = requireAnyGate(map[string]string{
 })
 
 func TestPipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure(t *testing.T) {
-	pipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure_WithOptions(t, false)
+	pipelineLevelFinallyOneDAGTaskFailedInvalidTaskResultFailureWithOptions(t, false)
 }
 
 func TestWithSpirePipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure(t *testing.T) {
-	pipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure_WithOptions(t, true)
+	pipelineLevelFinallyOneDAGTaskFailedInvalidTaskResultFailureWithOptions(t, true)
 }
 
-func pipelineLevelFinally_OneDAGTaskFailed_InvalidTaskResult_Failure_WithOptions(t *testing.T, spireEnabled bool) {
+func pipelineLevelFinallyOneDAGTaskFailedInvalidTaskResultFailureWithOptions(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -460,14 +460,14 @@ spec:
 }
 
 func TestPipelineLevelFinally_OneFinalTaskFailed_Failure(t *testing.T) {
-	pipelineLevelFinally_OneFinalTaskFailed_Failure_WithOptions(t, false)
+	pipelineLevelFinallyOneFinalTaskFailedFailureWithOptions(t, false)
 }
 
 func TestWithSpirePipelineLevelFinally_OneFinalTaskFailed_Failure(t *testing.T) {
-	pipelineLevelFinally_OneFinalTaskFailed_Failure_WithOptions(t, true)
+	pipelineLevelFinallyOneFinalTaskFailedFailureWithOptions(t, true)
 }
 
-func pipelineLevelFinally_OneFinalTaskFailed_Failure_WithOptions(t *testing.T, spireEnabled bool) {
+func pipelineLevelFinallyOneFinalTaskFailedFailureWithOptions(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -549,14 +549,14 @@ spec:
 }
 
 func TestPipelineLevelFinally_OneFinalTask_CancelledRunFinally(t *testing.T) {
-	pipelineLevelFinally_OneFinalTask_CancelledRunFinally_WithOptions(t, false)
+	pipelineLevelFinallyOneFinalTaskCancelledRunFinallyWithOptions(t, false)
 }
 
 func TestWithSpirePipelineLevelFinally_OneFinalTask_CancelledRunFinally(t *testing.T) {
-	pipelineLevelFinally_OneFinalTask_CancelledRunFinally_WithOptions(t, true)
+	pipelineLevelFinallyOneFinalTaskCancelledRunFinallyWithOptions(t, true)
 }
 
-func pipelineLevelFinally_OneFinalTask_CancelledRunFinally_WithOptions(t *testing.T, spireEnabled bool) {
+func pipelineLevelFinallyOneFinalTaskCancelledRunFinallyWithOptions(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -693,14 +693,14 @@ spec:
 }
 
 func TestPipelineLevelFinally_OneFinalTask_StoppedRunFinally(t *testing.T) {
-	pipelineLevelFinally_OneFinalTask_StoppedRunFinally_WithOptions(t, false)
+	pipelineLevelFinallyOneFinalTaskStoppedRunFinallyWithOptions(t, false)
 }
 
 func TestWithSpirePipelineLevelFinally_OneFinalTask_StoppedRunFinally(t *testing.T) {
-	pipelineLevelFinally_OneFinalTask_StoppedRunFinally_WithOptions(t, true)
+	pipelineLevelFinallyOneFinalTaskStoppedRunFinallyWithOptions(t, true)
 }
 
-func pipelineLevelFinally_OneFinalTask_StoppedRunFinally_WithOptions(t *testing.T, spireEnabled bool) {
+func pipelineLevelFinallyOneFinalTaskStoppedRunFinallyWithOptions(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

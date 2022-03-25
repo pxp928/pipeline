@@ -125,9 +125,9 @@ func main() {
 		}
 	}
 
-	var spireWorkloadApi spire.SpireEntrypointerApiClient
+	var spireWorkloadAPI spire.EntrypointerAPIClient
 	if socketPath != nil && *socketPath != "" {
-		spireWorkloadApi = spire.NewSpireEntrypointerApiClient(config.SpireConfig{
+		spireWorkloadAPI = spire.NewSpireEntrypointerAPIClient(config.SpireConfig{
 			SocketPath: *socketPath,
 		})
 	}
@@ -146,7 +146,7 @@ func main() {
 		BreakpointOnFailure: *breakpointOnFailure,
 		OnError:             *onError,
 		StepMetadataDir:     *stepMetadataDir,
-		SpireWorkloadAPI:    spireWorkloadApi,
+		SpireWorkloadAPI:    spireWorkloadAPI,
 	}
 
 	// Copy any creds injected by the controller into the $HOME directory of the current

@@ -39,9 +39,9 @@ import (
 var ignoreVolatileTime = cmp.Comparer(func(_, _ apis.VolatileTime) bool { return true })
 
 func TestMakeTaskRunStatusVerify(t *testing.T) {
-	sc := &spire.SpireMockClient{}
+	sc := &spire.MockClient{}
 	processConditions := cmp.Transformer("sortConditionsAndFilterMessages", func(in []apis.Condition) []apis.Condition {
-		for i, _ := range in {
+		for i := range in {
 			in[i].Message = ""
 		}
 		sort.Slice(in, func(i, j int) bool {
@@ -189,7 +189,7 @@ func TestMakeTaskRunStatusVerify(t *testing.T) {
 				Steps: []v1beta1.StepState{{
 					ContainerState: corev1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							Message: `to be overriden by signing`,
+							Message: `to be overridden by signing`,
 						}},
 					Name:          "bar",
 					ContainerName: "step-bar",
@@ -212,7 +212,7 @@ func TestMakeTaskRunStatusVerify(t *testing.T) {
 				Name: "step-bar",
 				State: corev1.ContainerState{
 					Terminated: &corev1.ContainerStateTerminated{
-						Message: `to be overriden by signing`,
+						Message: `to be overridden by signing`,
 					},
 				},
 			}},
@@ -223,7 +223,7 @@ func TestMakeTaskRunStatusVerify(t *testing.T) {
 				Steps: []v1beta1.StepState{{
 					ContainerState: corev1.ContainerState{
 						Terminated: &corev1.ContainerStateTerminated{
-							Message: `to be overriden by signing`,
+							Message: `to be overridden by signing`,
 						}},
 					Name:          "bar",
 					ContainerName: "step-bar",

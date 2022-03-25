@@ -42,15 +42,15 @@ function spire_apply() {
     echo "spire_apply requires a spiffeID as the first arg" >&2
     exit 1
   fi
-  show=$(kubectl exec -n spire spire-server-0 -c spire-server -- \
+  show=$(kubectl exec -n spire deployment/spire-server -- \
     /opt/spire/bin/spire-server entry show $1 $2)
   if [ "$show" != "Found 0 entries" ]; then
     # delete to recreate
     entryid=$(echo "$show" | grep "^Entry ID" | cut -f2 -d:)
-    kubectl exec -n spire spire-server-0 -c spire-server -- \
+    kubectl exec -n spire deployment/spire-server -- \
       /opt/spire/bin/spire-server entry delete -entryID $entryid
   fi
-  kubectl exec -n spire spire-server-0 -c spire-server -- \
+  kubectl exec -n spire deployment/spire-server -- \
     /opt/spire/bin/spire-server entry create "$@"
 }
 

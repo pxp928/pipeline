@@ -30,7 +30,8 @@ import (
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 )
 
-func (w *spireEntrypointerApiClient) Sign(ctx context.Context, results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
+// Signs the TaskRun results with the TaskRun spire SVID and appends the results to PipelineResourceResult
+func (w *spireEntrypointerAPIClient) Sign(ctx context.Context, results []v1beta1.PipelineResourceResult) ([]v1beta1.PipelineResourceResult, error) {
 	err := w.checkClient(ctx)
 	if err != nil {
 		return nil, err
@@ -105,7 +106,8 @@ func getManifest(results []v1beta1.PipelineResourceResult) string {
 	return strings.Join(keys, ",")
 }
 
-func (sc *spireControllerApiClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
+// AppendStatusInternalAnnotation creates the status annotations which are used by the controller to verify the status hash
+func (sc *spireControllerAPIClient) AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error {
 	err := sc.checkClient(ctx)
 	if err != nil {
 		return err
@@ -142,7 +144,7 @@ func (sc *spireControllerApiClient) AppendStatusInternalAnnotation(ctx context.C
 	return nil
 }
 
-func (sc *spireControllerApiClient) fetchSVID(ctx context.Context) (*x509svid.SVID, error) {
+func (sc *spireControllerAPIClient) fetchSVID(ctx context.Context) (*x509svid.SVID, error) {
 	xsvid, err := sc.workloadAPI.FetchX509SVID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch controller SVID: %w", err)

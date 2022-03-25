@@ -119,7 +119,7 @@ type TaskRunStatus struct {
 type TaskRunConditionType string
 
 const (
-	// TaskRunResultsVerified is a Condition Type that indicates that the results were verified by spire
+	// TaskRunConditionResultsVerified is a Condition Type that indicates that the results were verified by spire
 	TaskRunConditionResultsVerified TaskRunConditionType = "SignedResultsVerified"
 )
 
@@ -147,7 +147,7 @@ const (
 	TaskRunReasonTimedOut TaskRunReason = "TaskRunTimeout"
 	// TaskRunReasonResultsVerified is the reason set when the TaskRun results are verified by spire
 	TaskRunReasonResultsVerified TaskRunReason = "TaskRunResultsVerified"
-	// TaskRunReasonResultsFailed is the reason set when the TaskRun results are failed to verify by spire
+	// TaskRunReasonsResultsVerificationFailed is the reason set when the TaskRun results are failed to verify by spire
 	TaskRunReasonsResultsVerificationFailed TaskRunReason = "TaskRunResultsVerificationFailed"
 	// AwaitingTaskRunResults is the reason set when waiting upon `TaskRun` results and signatures to verify
 	AwaitingTaskRunResults TaskRunReason = "AwaitingTaskRunResults"

@@ -94,7 +94,7 @@ func main() {
 			SocketPath: *socketPath,
 		}
 
-		spireWorkloadAPI := spire.NewSpireEntrypointerApiClient(spireConfig)
+		spireWorkloadAPI := spire.NewSpireEntrypointerAPIClient(spireConfig)
 		signed, err := spireWorkloadAPI.Sign(ctx, output)
 		if err != nil {
 			logger.Fatal(err)
