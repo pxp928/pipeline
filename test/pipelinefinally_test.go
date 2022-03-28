@@ -324,8 +324,7 @@ spec:
 				t.Errorf("Error waiting for TaskRun to succeed: %v", err)
 			}
 			if spireEnabled {
-				// Fails due to function appending empty results with no entry. Even though taskrun is success results verification will fail
-				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
 				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 			finalTaskStartTime = taskrunItem.Status.StartTime

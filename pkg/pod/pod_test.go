@@ -2055,6 +2055,7 @@ func TestPodBuildwithSpireEnabled(t *testing.T) {
 					"/tekton/termination",
 					"-step_metadata_dir",
 					"/tekton/run/0/status",
+					"-enable_spire",
 					"-entrypoint",
 					"cmd",
 					"--",
