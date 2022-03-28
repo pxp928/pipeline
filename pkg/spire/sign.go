@@ -98,9 +98,6 @@ func getManifest(results []v1beta1.PipelineResourceResult) string {
 		if strings.HasSuffix(r.Key, KeySignatureSuffix) || r.Key == KeySVID || r.ResultType != v1beta1.TaskRunResultType {
 			continue
 		}
-		if r.ResultType != v1beta1.TaskRunResultType {
-			continue
-		}
 		keys = append(keys, r.Key)
 	}
 	return strings.Join(keys, ",")

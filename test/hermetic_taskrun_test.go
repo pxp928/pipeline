@@ -51,7 +51,6 @@ func hermeticTest(t *testing.T, spireEnabled bool) {
 	defer cancel()
 
 	c, namespace := setup(ctx, t, requireAnyGate(map[string]string{"enable-api-fields": "alpha"}))
-	t.Parallel()
 	defer tearDown(ctx, t, c, namespace)
 
 	if spireEnabled {

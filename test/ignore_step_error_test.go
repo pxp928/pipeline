@@ -112,7 +112,7 @@ spec:
 	}
 
 	if spireEnabled {
-		spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+		spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
 		spireShouldPassSpireAnnotation(&taskrunItem, t)
 	}
 
