@@ -65,7 +65,6 @@ func kanikoTest(t *testing.T, spireEnabled bool) {
 	}
 
 	c, namespace := setup(ctx, t, withRegistry)
-	t.Parallel()
 
 	repo := fmt.Sprintf("registry.%s:5000/kanikotasktest", namespace)
 

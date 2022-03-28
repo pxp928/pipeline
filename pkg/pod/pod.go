@@ -302,7 +302,7 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 				},
 			},
 		})
-		// podName := names.SimpleNameGenerator.RestrictLengthWithRandomSuffix(fmt.Sprintf("%s-pod", taskRun.Name))
+
 		for i := range stepContainers {
 			c := &stepContainers[i]
 			c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
@@ -317,17 +317,6 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 				MountPath: "/spiffe-workload-api",
 			})
 		}
-
-		// // Using node affinity on taskRuns sharing PVC workspace, with an Affinity Assistant
-		// // is mutually exclusive with other affinity on taskRun pods. If other
-		// // affinity is wanted, that should be added on the Affinity Assistant pod unless
-		// // assistant is disabled. When Affinity Assistant is disabled, an affinityAssistantName is not set.
-		// var affinity *corev1.Affinity
-		// if affinityAssistantName := taskRun.Annotations[workspace.AnnotationAffinityAssistantName]; affinityAssistantName != "" {
-		// 	affinity = nodeAffinityUsingAffinityAssistant(affinityAssistantName)
-		// } else {
-		// 	affinity = podTemplate.Affinity
-		// }
 	}
 
 	mergedPodContainers := stepContainers

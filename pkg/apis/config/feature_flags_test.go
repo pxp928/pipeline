@@ -86,7 +86,6 @@ func TestNewFeatureFlagsFromConfigMap(t *testing.T) {
 				EnableSpire:     true,
 
 				RunningInEnvWithInjectedSidecars: config.DefaultRunningInEnvWithInjectedSidecars,
-				ScopeWhenExpressionsToTask:       config.DefaultScopeWhenExpressionsToTask,
 			},
 			fileName: "feature-flags-enable-spire",
 		},

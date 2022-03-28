@@ -63,7 +63,6 @@ func TestWithSpirePipelineRun(t *testing.T) {
 }
 
 func pipelineTestWithOptions(t *testing.T, spireEnabled bool) {
-	t.Parallel()
 	type tests struct {
 		name                   string
 		testSetup              func(ctx context.Context, t *testing.T, c *clients, namespace string, index int)
@@ -217,7 +216,6 @@ spec:
 		i := i   // capture range variable
 		td := td // capture range variable
 		t.Run(td.name, func(t *testing.T) {
-			t.Parallel()
 			ctx := context.Background()
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
