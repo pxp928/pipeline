@@ -34,6 +34,7 @@ import (
 var (
 	images                 = flag.String("images", "", "List of images resources built by task in json format")
 	terminationMessagePath = flag.String("terminationMessagePath", "/tekton/termination", "Location of file containing termination message")
+	enableSpire            = flag.Bool("enable_spire", false, "If specified by configmap, this enables spire signing and verification")
 	socketPath             = flag.String("spire-socket-path", "/spiffe-workload-api/spire-agent.sock", "Experimental: The SPIRE agent socket for SPIFFE workload API.")
 )
 
@@ -71,7 +72,6 @@ func main() {
 			Key:          "digest",
 			Value:        digest.String(),
 			ResourceName: imageResource.Name,
-			ResultType:   v1beta1.TaskRunResultType,
 			ResourceRef: &v1beta1.PipelineResourceRef{
 				Name: imageResource.Name,
 			},
@@ -80,7 +80,6 @@ func main() {
 			Key:          "url",
 			Value:        imageResource.URL,
 			ResourceName: imageResource.Name,
-			ResultType:   v1beta1.TaskRunResultType,
 			ResourceRef: &v1beta1.PipelineResourceRef{
 				Name: imageResource.Name,
 			},
@@ -88,7 +87,7 @@ func main() {
 
 	}
 
-	if socketPath != nil {
+	if enableSpire != nil && *enableSpire && socketPath != nil && *socketPath != "" {
 		ctx := context.Background()
 		spireConfig := config.SpireConfig{
 			SocketPath: *socketPath,

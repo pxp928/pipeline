@@ -677,8 +677,11 @@ func (c *Reconciler) createPod(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 		return nil, err
 	}
 
+	// check if spire is enabled to pass to ImageDigestExporter
+	spireEnabled := config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire
+
 	// Get actual resource
-	err = resources.AddOutputImageDigestExporter(c.Images.ImageDigestExporterImage, tr, ts, c.resourceLister.PipelineResources(tr.Namespace).Get)
+	err = resources.AddOutputImageDigestExporter(c.Images.ImageDigestExporterImage, tr, ts, c.resourceLister.PipelineResources(tr.Namespace).Get, spireEnabled)
 	if err != nil {
 		logger.Errorf("Failed to create a pod for taskrun: %s due to output image resource error %v", tr.Name, err)
 		return nil, err

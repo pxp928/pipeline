@@ -118,6 +118,12 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 	implicitEnvVars := []corev1.EnvVar{}
 	alphaAPIEnabled := config.FromContextOrDefaults(ctx).FeatureFlags.EnableAPIFields == config.AlphaAPIFields
 
+	// Entrypoint arg to enable or disable spire
+	var commonExtraEntrypointArgs []string
+	if config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire {
+		commonExtraEntrypointArgs = append(commonExtraEntrypointArgs, "-enable_spire")
+	}
+
 	// Add our implicit volumes first, so they can be overridden by the user if they prefer.
 	volumes = append(volumes, implicitVolumes...)
 	volumeMounts = append(volumeMounts, implicitVolumeMounts...)
@@ -197,10 +203,13 @@ func (b *Builder) Build(ctx context.Context, taskRun *v1beta1.TaskRun, taskSpec 
 		VolumeMounts: []corev1.VolumeMount{binMount},
 	}
 
+	// append credEntrypointArgs with entrypoint arg that contains if spire is enabled by configmap
+	commonExtraEntrypointArgs = append(commonExtraEntrypointArgs, credEntrypointArgs...)
+
 	if alphaAPIEnabled {
-		stepContainers, err = orderContainers(credEntrypointArgs, stepContainers, &taskSpec, taskRun.Spec.Debug)
+		stepContainers, err = orderContainers(commonExtraEntrypointArgs, stepContainers, &taskSpec, taskRun.Spec.Debug)
 	} else {
-		stepContainers, err = orderContainers(credEntrypointArgs, stepContainers, &taskSpec, nil)
+		stepContainers, err = orderContainers(commonExtraEntrypointArgs, stepContainers, &taskSpec, nil)
 	}
 	if err != nil {
 		return nil, err
