@@ -1,0 +1,13 @@
+=== RUN   TestWithSpireTaskRunStatus
+    init_test.go:138: Create namespace arendelle-lp4bb to deploy to
+    init_test.go:166: Verify SA "default" is created in namespace "arendelle-lp4bb"
+=== PAUSE TestWithSpireTaskRunStatus
+=== CONT  TestWithSpireTaskRunStatus
+    init_test.go:275: Creating ConfigMap feature-flags
+    taskrun_test.go:185: Creating Task and TaskRun in namespace arendelle-lp4bb
+    taskrun_test.go:211: Waiting for TaskRun in namespace arendelle-lp4bb to succeed}
+    taskrun_test.go:250: Deleting namespace arendelle-lp4bb
+--- PASS: TestWithSpireTaskRunStatus (9.93s)
+PASS
+Using kubeconfig at `` with cluster ``
+ok  	github.com/tektoncd/pipeline/test	10.679s
