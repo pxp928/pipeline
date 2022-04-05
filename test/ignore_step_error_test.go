@@ -58,11 +58,6 @@ func stepErrorTest(t *testing.T, spireEnabled bool) {
 	knativetest.CleanupOnInterrupt(func() { tearDown(ctx, t, c, namespace) }, t.Logf)
 	defer tearDown(ctx, t, c, namespace)
 
-	if spireEnabled {
-		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
-		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
-	}
-
 	pipelineRun := parse.MustParsePipelineRun(t, fmt.Sprintf(`
 metadata:
   name: %s
@@ -124,6 +119,7 @@ spec:
 
 	if spireEnabled {
 		spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+		spireShouldPassSpireAnnotation(&taskrunItem, t)
 	}
 
 	for _, r := range taskrunItem.Status.TaskRunResults {

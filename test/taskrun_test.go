@@ -71,11 +71,6 @@ func taskrunFailureTest(t *testing.T, spireEnabled bool) {
 
 	taskRunName := helpers.ObjectNameForTest(t)
 
-	if spireEnabled {
-		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
-		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
-	}
-
 	t.Logf("Creating Task and TaskRun in namespace %s", namespace)
 	task := parse.MustParseTask(t, fmt.Sprintf(`
 metadata:
@@ -120,6 +115,7 @@ spec:
 
 	if spireEnabled {
 		spireShouldFailTaskRunResultsVerify(taskrun, t)
+		spireShouldPassSpireAnnotation(taskrun, t)
 	}
 
 	expectedStepState := []v1beta1.StepState{{
@@ -192,10 +188,6 @@ func taskrunStatusTest(t *testing.T, spireEnabled bool) {
 	defer tearDown(ctx, t, c, namespace)
 
 	taskRunName := helpers.ObjectNameForTest(t)
-	if spireEnabled {
-		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
-		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
-	}
 
 	fqImageName := getTestImage(busyboxImage)
 
@@ -237,6 +229,7 @@ spec:
 
 	if spireEnabled {
 		spireShouldPassTaskRunResultsVerify(taskrun, t)
+		spireShouldPassSpireAnnotation(taskrun, t)
 	}
 
 	expectedStepState := []v1beta1.StepState{{
@@ -355,6 +348,7 @@ spec:
 
 	if spireEnabled {
 		spireShouldFailTaskRunResultsVerify(taskrun, t)
+		spireShouldFailSpireAnnotation(taskrun, t)
 	}
 
 	expectedStepState := []v1beta1.StepState{{

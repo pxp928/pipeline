@@ -72,10 +72,6 @@ func embeddedResourceTest(t *testing.T, spireEnabled bool) {
 
 	embedTaskName := helpers.ObjectNameForTest(t)
 	embedTaskRunName := helpers.ObjectNameForTest(t)
-	if spireEnabled {
-		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
-		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
-	}
 
 	t.Logf("Creating Task and TaskRun in namespace %s", namespace)
 	if _, err := c.TaskClient.Create(ctx, getEmbeddedTask(t, embedTaskName, namespace, []string{"/bin/sh", "-c", fmt.Sprintf("echo %s", taskOutput)}), metav1.CreateOptions{}); err != nil {
@@ -99,6 +95,7 @@ func embeddedResourceTest(t *testing.T, spireEnabled bool) {
 			t.Errorf("Error retrieving taskrun: %s", err)
 		}
 		spireShouldPassTaskRunResultsVerify(tr, t)
+		spireShouldPassSpireAnnotation(tr, t)
 	}
 
 }
