@@ -31,6 +31,216 @@ import (
 	duckv1beta1 "knative.dev/pkg/apis/duck/v1beta1"
 )
 
+// Simple task run sign/verify
+func TestSpireMock_TaskRunSign(t *testing.T) {
+	spireMockClient := &MockClient{}
+	var (
+		cc ControllerAPIClient = spireMockClient
+	)
+
+	ctx := context.Background()
+	var err error
+
+	for _, tr := range testTaskRuns() {
+		err = cc.AppendStatusInternalAnnotation(ctx, tr)
+		if err != nil {
+			t.Fatalf("failed to sign TaskRun: %v", err)
+		}
+
+		err = cc.VerifyStatusInternalAnnotation(ctx, tr, nil)
+		if err != nil {
+			t.Fatalf("failed to verify TaskRun: %v", err)
+		}
+	}
+}
+
+// test CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool
+func TestSpireMock_CheckSpireVerifiedFlag(t *testing.T) {
+	spireMockClient := &MockClient{}
+	var (
+		cc ControllerAPIClient = spireMockClient
+	)
+
+	trs := testTaskRuns()
+	tr := trs[0]
+
+	if !cc.CheckSpireVerifiedFlag(tr) {
+		t.Fatalf("verified flag should be unset")
+	}
+
+	if tr.Status.Status.Annotations == nil {
+		tr.Status.Status.Annotations = map[string]string{}
+	}
+	tr.Status.Status.Annotations[NotVerifiedAnnotation] = "yes"
+
+	if cc.CheckSpireVerifiedFlag(tr) {
+		t.Fatalf("verified flag should be unset")
+	}
+}
+
+// Task run check signed status is not the same with two taskruns
+func TestSpireMock_CheckHashSimilarities(t *testing.T) {
+	spireMockClient := &MockClient{}
+	var (
+		cc ControllerAPIClient = spireMockClient
+	)
+
+	ctx := context.Background()
+	trs := testTaskRuns()
+	tr1, tr2 := trs[0], trs[1]
+
+	trs = testTaskRuns()
+	tr1c, tr2c := trs[0], trs[1]
+
+	tr2c.Status.Status.Annotations = map[string]string{"new": "value"}
+
+	signTrs := []*v1beta1.TaskRun{tr1, tr1c, tr2, tr2c}
+
+	for _, tr := range signTrs {
+		err := cc.AppendStatusInternalAnnotation(ctx, tr)
+		if err != nil {
+			t.Fatalf("failed to sign TaskRun: %v", err)
+		}
+	}
+
+	if getHash(tr1) != getHash(tr1c) {
+		t.Fatalf("2 hashes of the same status should be same")
+	}
+
+	if getHash(tr1) == getHash(tr2) {
+		t.Fatalf("2 hashes of different status should not be the same")
+	}
+
+	if getHash(tr2) != getHash(tr2c) {
+		t.Fatalf("2 hashes of the same status should be same (ignoring Status.Status)")
+	}
+}
+
+// Task run sign, modify signature/hash/svid/content and verify
+func TestSpireMock_CheckTamper(t *testing.T) {
+
+	tests := []struct {
+		// description of test case
+		desc string
+		// annotations to set
+		setAnnotations map[string]string
+		// modify the status
+		modifyStatus bool
+		// modify the hash to match the new status but not the signature
+		modifyHashToMatch bool
+		// if test should pass
+		verify bool
+	}{
+		{
+			desc:   "tamper nothing",
+			verify: true,
+		},
+		{
+			desc: "tamper unrelated hash",
+			setAnnotations: map[string]string{
+				"unrelated-hash": "change",
+			},
+			verify: true,
+		},
+		{
+			desc: "tamper status hash",
+			setAnnotations: map[string]string{
+				TaskRunStatusHashAnnotation: "change-hash",
+			},
+			verify: false,
+		},
+		{
+			desc: "tamper sig",
+			setAnnotations: map[string]string{
+				taskRunStatusHashSigAnnotation: "change-sig",
+			},
+			verify: false,
+		},
+		{
+			desc: "tamper SVID",
+			setAnnotations: map[string]string{
+				controllerSvidAnnotation: "change-svid",
+			},
+			verify: false,
+		},
+		{
+			desc: "delete status hash",
+			setAnnotations: map[string]string{
+				TaskRunStatusHashAnnotation: "",
+			},
+			verify: false,
+		},
+		{
+			desc: "delete sig",
+			setAnnotations: map[string]string{
+				taskRunStatusHashSigAnnotation: "",
+			},
+			verify: false,
+		},
+		{
+			desc: "delete SVID",
+			setAnnotations: map[string]string{
+				controllerSvidAnnotation: "",
+			},
+			verify: false,
+		},
+		{
+			desc:         "tamper status",
+			modifyStatus: true,
+			verify:       false,
+		},
+		{
+			desc:              "tamper status and status hash",
+			modifyStatus:      true,
+			modifyHashToMatch: true,
+			verify:            false,
+		},
+	}
+	for _, tt := range tests {
+		spireMockClient := &MockClient{}
+		var (
+			cc ControllerAPIClient = spireMockClient
+		)
+
+		ctx := context.Background()
+		for _, tr := range testTaskRuns() {
+			err := cc.AppendStatusInternalAnnotation(ctx, tr)
+			if err != nil {
+				t.Fatalf("failed to sign TaskRun: %v", err)
+			}
+
+			if tr.Status.Status.Annotations == nil {
+				tr.Status.Status.Annotations = map[string]string{}
+			}
+
+			if tt.setAnnotations != nil {
+				for k, v := range tt.setAnnotations {
+					tr.Status.Status.Annotations[k] = v
+				}
+			}
+
+			if tt.modifyStatus {
+				tr.Status.TaskRunStatusFields.Steps = append(tr.Status.TaskRunStatusFields.Steps, v1beta1.StepState{
+					ContainerState: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{ExitCode: int32(54321)},
+					}})
+			}
+
+			if tt.modifyHashToMatch {
+				h, _ := hashTaskrunStatusInternal(tr)
+				tr.Status.Status.Annotations[TaskRunStatusHashAnnotation] = h
+			}
+
+			verified := cc.VerifyStatusInternalAnnotation(ctx, tr, nil) == nil
+			if verified != tt.verify {
+				t.Fatalf("test %v expected verify %v, got %v", tt.desc, tt.verify, verified)
+			}
+		}
+
+	}
+
+}
+
 // Task result sign and verify
 func TestSpireMock_TaskRunResultsSign(t *testing.T) {
 	spireMockClient := &MockClient{}
@@ -478,6 +688,10 @@ func testPipelineResourceResults() [][]v1beta1.PipelineResourceResult {
 		// empty result
 		{},
 	}
+}
+
+func getHash(tr *v1beta1.TaskRun) string {
+	return tr.Status.Status.Annotations[TaskRunStatusHashAnnotation]
 }
 
 func genPodObj(tr *v1beta1.TaskRun, uid string) *corev1.Pod {

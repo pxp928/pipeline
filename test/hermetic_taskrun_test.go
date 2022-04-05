@@ -89,6 +89,7 @@ func hermeticTest(t *testing.T, spireEnabled bool) {
 					t.Errorf("Error retrieving taskrun: %s", err)
 				}
 				spireShouldPassTaskRunResultsVerify(tr, t)
+				spireShouldPassSpireAnnotation(tr, t)
 			}
 
 			// now, run the task mode with hermetic mode
@@ -108,6 +109,7 @@ func hermeticTest(t *testing.T, spireEnabled bool) {
 					t.Errorf("Error retrieving taskrun: %s", err)
 				}
 				spireShouldFailTaskRunResultsVerify(tr, t)
+				spireShouldPassSpireAnnotation(tr, t)
 			}
 		})
 	}

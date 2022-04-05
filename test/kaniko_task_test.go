@@ -140,6 +140,7 @@ func kanikoTest(t *testing.T, spireEnabled bool) {
 
 	if spireEnabled {
 		spireShouldPassTaskRunResultsVerify(tr, t)
+		spireShouldPassSpireAnnotation(tr, t)
 	}
 
 	// match the local digest, which is first capture group against the remote image

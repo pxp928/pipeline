@@ -111,6 +111,7 @@ spec:
 
 	if spireEnabled {
 		spireShouldFailTaskRunResultsVerify(taskrun, t)
+		spireShouldPassSpireAnnotation(taskrun, t)
 	}
 
 	expectedStepState := []v1beta1.StepState{{
@@ -218,6 +219,7 @@ spec:
 
 	if spireEnabled {
 		spireShouldPassTaskRunResultsVerify(taskrun, t)
+		spireShouldPassSpireAnnotation(taskrun, t)
 	}
 
 	expectedStepState := []v1beta1.StepState{{
@@ -333,6 +335,7 @@ spec:
 
 	if spireEnabled {
 		spireShouldFailTaskRunResultsVerify(taskrun, t)
+		spireShouldFailSpireAnnotation(taskrun, t)
 	}
 
 	expectedStepState := []v1beta1.StepState{{

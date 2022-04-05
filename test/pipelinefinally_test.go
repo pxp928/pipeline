@@ -283,6 +283,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 			dagTask1EndTime = taskrunItem.Status.CompletionTime
 		case n == "dagtask2":
@@ -291,6 +292,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 			dagTask2EndTime = taskrunItem.Status.CompletionTime
 		case n == "dagtask3":
@@ -300,11 +302,13 @@ spec:
 			if spireEnabled {
 				// Skipped due to condition so status annotations should be there. Results should not be verified as not run
 				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		case n == "dagtask4":
 			if spireEnabled {
 				// Skipped so status annotations should not be there. Results should not be verified as not run
 				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
 			}
 			t.Fatalf("task %s should have skipped due to when expression", n)
 		case n == "dagtask5":
@@ -313,6 +317,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		case n == "finaltask1":
 			if err := WaitForTaskRunState(ctx, c, taskrunItem.Name, TaskRunSucceed(taskrunItem.Name), "TaskRunSuccess"); err != nil {
@@ -320,6 +325,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 			finalTaskStartTime = taskrunItem.Status.StartTime
 		case n == "finaltask2":
@@ -328,6 +334,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 			for _, p := range taskrunItem.Spec.Params {
 				switch param := p.Name; param {
@@ -356,6 +363,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 			for _, p := range taskrunItem.Spec.Params {
 				if p.Name == "dagtask-result" && p.Value.StringVal != "Hello" {
@@ -368,6 +376,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		case n == "guardedfinaltaskusingdagtask5status1":
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
@@ -375,17 +384,20 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		case n == "guardedfinaltaskusingdagtask5result2":
 			if spireEnabled {
 				// Skipped so status annotations should not be there. Results should not be verified as not run
 				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
 			}
 			t.Fatalf("final task %s should have skipped due to when expression evaluating to false", n)
 		case n == "finaltaskconsumingdagtask1" || n == "finaltaskconsumingdagtask4" || n == "guardedfinaltaskconsumingdagtask4":
 			if spireEnabled {
 				// Skipped so status annotations should not be there. Results should not be verified as not run
 				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
 			}
 			t.Fatalf("final task %s should have skipped due to missing task result reference", n)
 		default:
@@ -519,6 +531,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		case n == "finaltask1":
 			if !isFailed(t, n, taskrunItem.Status.Conditions) {
@@ -526,6 +539,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		default:
 			t.Fatalf("TaskRuns were not found for both final and dag tasks")
@@ -649,10 +663,12 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		case "dagtask2":
 			if spireEnabled {
 				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
 			}
 			t.Fatalf("second dag task %s should be skipped as it depends on the result from cancelled 'dagtask1'", n)
 		case "finaltask1":
@@ -661,10 +677,12 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		case "finaltask2":
 			if spireEnabled {
 				spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+				spireZeroSpireAnnotation(&taskrunItem, t)
 			}
 			t.Fatalf("second final task %s should be skipped as it depends on the result from cancelled 'dagtask1'", n)
 		default:
@@ -789,6 +807,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		case "finaltask1":
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
@@ -796,6 +815,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		case "finaltask2":
 			if !isSuccessful(t, n, taskrunItem.Status.Conditions) {
@@ -803,6 +823,7 @@ spec:
 			}
 			if spireEnabled {
 				spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+				spireShouldPassSpireAnnotation(&taskrunItem, t)
 			}
 		default:
 			t.Fatalf("TaskRuns were not found for both final and dag tasks")

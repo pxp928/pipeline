@@ -115,6 +115,7 @@ spec:
 
 	if spireEnabled {
 		spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+		spireShouldPassSpireAnnotation(&taskrunItem, t)
 	}
 
 	for _, r := range taskrunItem.Status.TaskRunResults {

@@ -273,6 +273,7 @@ spec:
 					}
 					if spireEnabled {
 						spireShouldPassTaskRunResultsVerify(&actualTaskRunItem, t)
+						spireShouldPassSpireAnnotation(&actualTaskRunItem, t)
 					}
 				}
 				expectedTaskRunNames = append(expectedTaskRunNames, taskRunName)
@@ -445,6 +446,7 @@ spec:
 		}
 		for _, taskrunItem := range taskrunList.Items {
 			spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+			spireShouldPassSpireAnnotation(&taskrunItem, t)
 		}
 	}
 
@@ -557,6 +559,7 @@ spec:
 		}
 		for _, taskrunItem := range taskrunList.Items {
 			spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+			spireShouldPassSpireAnnotation(&taskrunItem, t)
 		}
 	}
 }
