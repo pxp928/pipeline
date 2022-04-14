@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/tektoncd/pipeline/pkg/apis/config"
 	"github.com/tektoncd/pipeline/test/parse"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,16 +37,31 @@ import (
 // that doesn't have a cmd defined. In addition to making sure the steps
 // are executed in the order specified
 func TestEntrypointRunningStepsInOrder(t *testing.T) {
+	entryPointerTest(t, false)
+}
+
+// TestEntrypointRunningStepsInOrderWithSpire is an integration test with spire enabled that will
+// verify attempt to the get the entrypoint of a container image
+// that doesn't have a cmd defined. In addition to making sure the steps
+// are executed in the order specified
+func TestEntrypointRunningStepsInOrderWithSpire(t *testing.T) {
+	entryPointerTest(t, true)
+}
+
+func entryPointerTest(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	c, namespace := setup(ctx, t)
-	t.Parallel()
 
 	knativetest.CleanupOnInterrupt(func() { tearDown(ctx, t, c, namespace) }, t.Logf)
 	defer tearDown(ctx, t, c, namespace)
 
 	epTaskRunName := helpers.ObjectNameForTest(t)
+	if spireEnabled {
+		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
+		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
+	}
 
 	t.Logf("Creating TaskRun in namespace %s", namespace)
 	if _, err := c.TaskRunClient.Create(ctx, parse.MustParseTaskRun(t, fmt.Sprintf(`
@@ -68,6 +84,14 @@ spec:
 	t.Logf("Waiting for TaskRun in namespace %s to finish successfully", namespace)
 	if err := WaitForTaskRunState(ctx, c, epTaskRunName, TaskRunSucceed(epTaskRunName), "TaskRunSuccess"); err != nil {
 		t.Errorf("Error waiting for TaskRun to finish successfully: %s", err)
+	}
+
+	if spireEnabled {
+		tr, err := c.TaskRunClient.Get(ctx, epTaskRunName, metav1.GetOptions{})
+		if err != nil {
+			t.Errorf("Error retrieving taskrun: %s", err)
+		}
+		spireShouldPassTaskRunResultsVerify(tr, t)
 	}
 
 }

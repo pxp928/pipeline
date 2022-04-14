@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	"github.com/tektoncd/pipeline/pkg/apis/config"
+	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/names"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -44,6 +45,10 @@ import (
 	"knative.dev/pkg/test/logging" // Mysteriously by k8s libs, or they fail to create `KubeClient`s from config. Apparently just importing it is enough. @_@ side effects @_@. https://github.com/kubernetes/client-go/issues/242
 	"knative.dev/pkg/test/logstream"
 	"sigs.k8s.io/yaml"
+)
+
+const (
+	systemNamespace = "tekton-pipelines"
 )
 
 var initMetrics sync.Once
@@ -259,4 +264,58 @@ func getCRDYaml(ctx context.Context, cs *clients, ns string) ([]byte, error) {
 	}
 
 	return output, nil
+}
+
+// updateConfigMap updates the config map for specified @name with values. We can't use the one from knativetest because
+// it assumes that Data is already a non-nil map, and by default, it isn't!
+func updateConfigMap(ctx context.Context, client kubernetes.Interface, name string, configName string, values map[string]string) error {
+	configMap, err := client.CoreV1().ConfigMaps(name).Get(ctx, configName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	if configMap.Data == nil {
+		configMap.Data = make(map[string]string)
+	}
+
+	for key, value := range values {
+		configMap.Data[key] = value
+	}
+
+	_, err = client.CoreV1().ConfigMaps(name).Update(ctx, configMap, metav1.UpdateOptions{})
+	return err
+}
+
+// changes the configmap for "feature-flags" to enable spire
+func enableSpireConfigMap(ctx context.Context, c *clients, t *testing.T) map[string]string {
+	originalConfigMap, err := c.KubeClient.CoreV1().ConfigMaps(systemNamespace).Get(ctx, config.GetFeatureFlagsConfigName(), metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Failed to get ConfigMap `%s`: %s", config.GetFeatureFlagsConfigName(), err)
+		return nil
+	}
+	originalConfigMapData := originalConfigMap.Data
+
+	t.Logf("Creating ConfigMap %s", config.GetFeatureFlagsConfigName())
+	configMapData := map[string]string{
+		"enable-spire": "true",
+	}
+	if err := updateConfigMap(ctx, c.KubeClient, systemNamespace, config.GetFeatureFlagsConfigName(), configMapData); err != nil {
+		t.Fatal(err)
+		return nil
+	}
+	return originalConfigMapData
+}
+
+// Verifies if the taskrun results should not be verified by spire
+func spireShouldFailTaskRunResultsVerify(tr *v1beta1.TaskRun, t *testing.T) {
+	if tr.IsTaskRunResultVerified() {
+		t.Errorf("Taskrun `%s` status condition should not be verified as taskrun failed", tr.Name)
+	}
+}
+
+// Verifies if the taskrun results are verified by spire
+func spireShouldPassTaskRunResultsVerify(tr *v1beta1.TaskRun, t *testing.T) {
+	if !tr.IsTaskRunResultVerified() {
+		t.Errorf("Taskrun `%s` status condition not verified. Spire taskrun results verification failure", tr.Name)
+	}
 }

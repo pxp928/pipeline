@@ -27,6 +27,7 @@ import (
 
 	"github.com/tektoncd/pipeline/test/parse"
 
+	"github.com/tektoncd/pipeline/pkg/apis/config"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	knativetest "knative.dev/pkg/test"
@@ -41,17 +42,30 @@ const (
 // TestTaskRun_EmbeddedResource is an integration test that will verify a very simple "hello world" TaskRun can be
 // executed with an embedded resource spec.
 func TestTaskRun_EmbeddedResource(t *testing.T) {
+	embeddedResourceTest(t, false)
+}
+
+// TestTaskRun_EmbeddedResourceWithSpire is an integration test with spire enabled that will verify a very simple "hello world" TaskRun can be
+// executed with an embedded resource spec.
+func TestTaskRun_EmbeddedResourceWithSpire(t *testing.T) {
+	embeddedResourceTest(t, true)
+}
+
+func embeddedResourceTest(t *testing.T, spireEnabled bool) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	c, namespace := setup(ctx, t)
-	t.Parallel()
 
 	knativetest.CleanupOnInterrupt(func() { tearDown(ctx, t, c, namespace) }, t.Logf)
 	defer tearDown(ctx, t, c, namespace)
 
 	embedTaskName := helpers.ObjectNameForTest(t)
 	embedTaskRunName := helpers.ObjectNameForTest(t)
+	if spireEnabled {
+		originalConfigMapData := enableSpireConfigMap(ctx, c, t)
+		defer resetConfigMap(ctx, t, c, systemNamespace, config.GetFeatureFlagsConfigName(), originalConfigMapData)
+	}
 
 	t.Logf("Creating Task and TaskRun in namespace %s", namespace)
 	if _, err := c.TaskClient.Create(ctx, getEmbeddedTask(t, embedTaskName, namespace, []string{"/bin/sh", "-c", fmt.Sprintf("echo %s", taskOutput)}), metav1.CreateOptions{}); err != nil {
@@ -68,6 +82,15 @@ func TestTaskRun_EmbeddedResource(t *testing.T) {
 
 	// TODO(#127) Currently we have no reliable access to logs from the TaskRun so we'll assume successful
 	// completion of the TaskRun means the TaskRun did what it was intended.
+
+	if spireEnabled {
+		tr, err := c.TaskRunClient.Get(ctx, embedTaskRunName, metav1.GetOptions{})
+		if err != nil {
+			t.Errorf("Error retrieving taskrun: %s", err)
+		}
+		spireShouldPassTaskRunResultsVerify(tr, t)
+	}
+
 }
 
 func getEmbeddedTask(t *testing.T, taskName, namespace string, args []string) *v1beta1.Task {
