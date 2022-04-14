@@ -32,6 +32,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/tektoncd/pipeline/pkg/apis/config"
+	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"github.com/tektoncd/pipeline/pkg/names"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -259,4 +260,38 @@ func getCRDYaml(ctx context.Context, cs *clients, ns string) ([]byte, error) {
 	}
 
 	return output, nil
+}
+
+// changes the configmap for "feature-flags" to enable spire
+func enableSpireConfigMap(ctx context.Context, c *clients, t *testing.T) map[string]string {
+	originalConfigMap, err := c.KubeClient.CoreV1().ConfigMaps(systemNamespace).Get(ctx, config.GetFeatureFlagsConfigName(), metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Failed to get ConfigMap `%s`: %s", config.GetFeatureFlagsConfigName(), err)
+		return nil
+	}
+	originalConfigMapData := originalConfigMap.Data
+
+	t.Logf("Creating ConfigMap %s", config.GetFeatureFlagsConfigName())
+	configMapData := map[string]string{
+		"enable-spire": "true",
+	}
+	if err := updateConfigMap(ctx, c.KubeClient, systemNamespace, config.GetFeatureFlagsConfigName(), configMapData); err != nil {
+		t.Fatal(err)
+		return nil
+	}
+	return originalConfigMapData
+}
+
+// Verifies if the taskrun results should not be verified by spire
+func spireShouldFailTaskRunResultsVerify(tr *v1beta1.TaskRun, t *testing.T) {
+	if tr.IsTaskRunResultVerified() {
+		t.Errorf("Taskrun `%s` status condition should not be verified as taskrun failed", tr.Name)
+	}
+}
+
+// Verifies if the taskrun results are verified by spire
+func spireShouldPassTaskRunResultsVerify(tr *v1beta1.TaskRun, t *testing.T) {
+	if !tr.IsTaskRunResultVerified() {
+		t.Errorf("Taskrun `%s` status condition not verified. Spire taskrun results verification failure", tr.Name)
+	}
 }

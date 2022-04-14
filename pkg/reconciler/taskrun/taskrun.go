@@ -45,6 +45,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/reconciler/events/cloudevent"
 	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/resources"
 	"github.com/tektoncd/pipeline/pkg/reconciler/volumeclaim"
+	"github.com/tektoncd/pipeline/pkg/spire"
 	"github.com/tektoncd/pipeline/pkg/taskrunmetrics"
 	_ "github.com/tektoncd/pipeline/pkg/taskrunmetrics/fake" // Make sure the taskrunmetrics are setup
 	"github.com/tektoncd/pipeline/pkg/workspace"
@@ -67,6 +68,7 @@ type Reconciler struct {
 	KubeClientSet     kubernetes.Interface
 	PipelineClientSet clientset.Interface
 	Images            pipeline.Images
+	SpireClient       spire.ControllerAPIClient
 	Clock             clock.PassiveClock
 
 	// listers index properties about resources
@@ -257,13 +259,17 @@ func (c *Reconciler) finishReconcileUpdateEmitEvents(ctx context.Context, tr *v1
 	// Send k8s events and cloud events (when configured)
 	events.Emit(ctx, beforeCondition, afterCondition, tr)
 
-	_, err := c.updateLabelsAndAnnotations(ctx, tr)
+	var err error
+
+	merr := multierror.Append(previousError, err).ErrorOrNil()
+
+	_, err = c.updateLabelsAndAnnotations(ctx, tr)
 	if err != nil {
 		logger.Warn("Failed to update TaskRun labels/annotations", zap.Error(err))
 		events.EmitError(controller.GetEventRecorder(ctx), err, tr)
 	}
 
-	merr := multierror.Append(previousError, err).ErrorOrNil()
+	merr = multierror.Append(previousError, err).ErrorOrNil()
 	if controller.IsPermanentError(previousError) {
 		return controller.NewPermanentError(merr)
 	}
@@ -386,6 +392,7 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	// Get the TaskRun's Pod if it should have one. Otherwise, create the Pod.
 	var pod *corev1.Pod
 	var err error
+	spireEnabled := config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire
 
 	if tr.Status.PodName != "" {
 		pod, err = c.KubeClientSet.CoreV1().Pods(tr.Namespace).Get(ctx, tr.Status.PodName, metav1.GetOptions{})
@@ -446,18 +453,38 @@ func (c *Reconciler) reconcile(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 	}
 
 	if podconvert.SidecarsReady(pod.Status) {
-		if err := podconvert.UpdateReady(ctx, c.KubeClientSet, *pod); err != nil {
-			return err
-		}
 		if err := c.metrics.RecordPodLatency(pod, tr); err != nil {
 			logger.Warnf("Failed to log the metrics : %v", err)
 		}
+
+		if spireEnabled {
+			// TTL for the entry is in seconds
+			ttl := config.FromContextOrDefaults(ctx).Defaults.DefaultTimeoutMinutes * 60
+			if err = c.SpireClient.CreateEntries(ctx, tr, pod, ttl); err != nil {
+				logger.Errorf("Failed to create workload SPIFFE entry for taskrun %v: %v", tr.Name, err)
+				return err
+			}
+			logger.Infof("Created SPIFFE workload entry for %v/%v", tr.Namespace, tr.Name)
+		}
+
+		if err := podconvert.UpdateReady(ctx, c.KubeClientSet, *pod); err != nil {
+			return err
+		}
+
 	}
 
 	// Convert the Pod's status to the equivalent TaskRun Status.
-	tr.Status, err = podconvert.MakeTaskRunStatus(logger, *tr, pod)
+	tr.Status, err = podconvert.MakeTaskRunStatus(ctx, logger, *tr, pod, spireEnabled, c.SpireClient)
 	if err != nil {
 		return err
+	}
+
+	if spireEnabled && tr.IsDone() {
+		if err := c.SpireClient.DeleteEntry(ctx, tr, pod); err != nil {
+			logger.Infof("Failed to remove workload SPIFFE entry for taskrun %v: %v", tr.Name, err)
+			return err
+		}
+		logger.Infof("Deleted SPIFFE workload entry for %v/%v", tr.Namespace, tr.Name)
 	}
 
 	logger.Infof("Successfully reconciled taskrun %s/%s with status: %#v", tr.Name, tr.Namespace, tr.Status.GetCondition(apis.ConditionSucceeded))
@@ -622,8 +649,11 @@ func (c *Reconciler) createPod(ctx context.Context, tr *v1beta1.TaskRun, rtr *re
 		return nil, err
 	}
 
+	// check if spire is enabled to pass to ImageDigestExporter
+	spireEnabled := config.FromContextOrDefaults(ctx).FeatureFlags.EnableSpire
+
 	// Get actual resource
-	err = resources.AddOutputImageDigestExporter(c.Images.ImageDigestExporterImage, tr, ts, c.resourceLister.PipelineResources(tr.Namespace).Get)
+	err = resources.AddOutputImageDigestExporter(c.Images.ImageDigestExporterImage, tr, ts, c.resourceLister.PipelineResources(tr.Namespace).Get, spireEnabled)
 	if err != nil {
 		logger.Errorf("Failed to create a pod for taskrun: %s due to output image resource error %v", tr.Name, err)
 		return nil, err
