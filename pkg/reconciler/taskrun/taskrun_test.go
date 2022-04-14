@@ -43,6 +43,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/reconciler/taskrun/resources"
 	ttesting "github.com/tektoncd/pipeline/pkg/reconciler/testing"
 	"github.com/tektoncd/pipeline/pkg/reconciler/volumeclaim"
+	spireconfig "github.com/tektoncd/pipeline/pkg/spire/config"
 	"github.com/tektoncd/pipeline/test"
 	"github.com/tektoncd/pipeline/test/diff"
 	eventstest "github.com/tektoncd/pipeline/test/events"
@@ -92,6 +93,7 @@ var (
 		PRImage:                  "override-with-pr:latest",
 		ImageDigestExporterImage: "override-with-imagedigest-exporter-image:latest",
 	}
+	spireConfig              = spireconfig.SpireConfig{MockSpire: true}
 	now                      = time.Date(2022, time.January, 1, 0, 0, 0, 0, time.UTC)
 	ignoreLastTransitionTime = cmpopts.IgnoreFields(apis.Condition{}, "LastTransitionTime.Inner.Time")
 	// Pods are created with a random 5-character suffix that we want to
@@ -509,7 +511,7 @@ func ensureConfigurationConfigMapsExist(d *test.Data) {
 func getTaskRunController(t *testing.T, d test.Data) (test.Assets, func()) {
 	t.Helper()
 	names.TestingSeed()
-	return initializeTaskRunControllerAssets(t, d, pipeline.Options{Images: images})
+	return initializeTaskRunControllerAssets(t, d, pipeline.Options{Images: images, SpireConfig: spireConfig})
 }
 
 func initializeTaskRunControllerAssets(t *testing.T, d test.Data, opts pipeline.Options) (test.Assets, func()) {

@@ -29,6 +29,7 @@ import (
 	"github.com/tektoncd/pipeline/pkg/pod"
 	cloudeventclient "github.com/tektoncd/pipeline/pkg/reconciler/events/cloudevent"
 	"github.com/tektoncd/pipeline/pkg/reconciler/volumeclaim"
+	"github.com/tektoncd/pipeline/pkg/spire"
 	"github.com/tektoncd/pipeline/pkg/taskrunmetrics"
 	resolutionclient "github.com/tektoncd/resolution/pkg/client/injection/client"
 	resolutioninformer "github.com/tektoncd/resolution/pkg/client/injection/informers/resolution/v1alpha1/resolutionrequest"
@@ -66,6 +67,7 @@ func NewController(opts *pipeline.Options, clock clock.PassiveClock) func(contex
 			KubeClientSet:       kubeclientset,
 			PipelineClientSet:   pipelineclientset,
 			Images:              opts.Images,
+			SpireClient:         spire.NewSpireControllerAPIClient(opts.SpireConfig),
 			Clock:               clock,
 			taskRunLister:       taskRunInformer.Lister(),
 			resourceLister:      resourceInformer.Lister(),
