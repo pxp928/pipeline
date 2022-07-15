@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	ttesting "github.com/tektoncd/pipeline/pkg/reconciler/testing"
 	"github.com/tektoncd/pipeline/pkg/spire/config"
 	"github.com/tektoncd/pipeline/pkg/spire/test"
 	"github.com/tektoncd/pipeline/pkg/spire/test/fakeworkloadapi"
@@ -39,6 +40,8 @@ var (
 )
 
 func TestSpire_TaskRunSign(t *testing.T) {
+	ctx, _ := ttesting.SetupDefaultContext(t)
+
 	ca := test.NewCA(t, td)
 	wl := fakeworkloadapi.New(t)
 	defer wl.Stop()
@@ -54,9 +57,9 @@ func TestSpire_TaskRunSign(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireControllerClient := NewSpireControllerAPIClient(*cfg)
+	spireControllerClient := GetControllerAPIClient(ctx)
+	spireControllerClient.SetConfig(*cfg)
 
-	ctx := context.Background()
 	logger := logging.FromContext(ctx)
 
 	var (
@@ -80,6 +83,8 @@ func TestSpire_TaskRunSign(t *testing.T) {
 }
 
 func TestSpire_CheckSpireVerifiedFlag(t *testing.T) {
+	ctx, _ := ttesting.SetupDefaultContext(t)
+
 	ca := test.NewCA(t, td)
 	wl := fakeworkloadapi.New(t)
 	defer wl.Stop()
@@ -95,7 +100,8 @@ func TestSpire_CheckSpireVerifiedFlag(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireControllerClient := NewSpireControllerAPIClient(*cfg)
+	spireControllerClient := GetControllerAPIClient(ctx)
+	spireControllerClient.SetConfig(*cfg)
 
 	var (
 		cc ControllerAPIClient = spireControllerClient
@@ -120,6 +126,8 @@ func TestSpire_CheckSpireVerifiedFlag(t *testing.T) {
 }
 
 func TestSpire_CheckHashSimilarities(t *testing.T) {
+	ctx, _ := ttesting.SetupDefaultContext(t)
+
 	ca := test.NewCA(t, td)
 	wl := fakeworkloadapi.New(t)
 	defer wl.Stop()
@@ -135,14 +143,14 @@ func TestSpire_CheckHashSimilarities(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireControllerClient := NewSpireControllerAPIClient(*cfg)
+	spireControllerClient := GetControllerAPIClient(ctx)
+	spireControllerClient.SetConfig(*cfg)
 
 	var (
 		cc ControllerAPIClient = spireControllerClient
 	)
 	defer cc.Close()
 
-	ctx := context.Background()
 	trs := testTaskRuns()
 	tr1, tr2 := trs[0], trs[1]
 
@@ -175,6 +183,8 @@ func TestSpire_CheckHashSimilarities(t *testing.T) {
 
 // Task run sign, modify signature/hash/svid/content and verify
 func TestSpire_CheckTamper(t *testing.T) {
+	ctx, _ := ttesting.SetupDefaultContext(t)
+
 	ca := test.NewCA(t, td)
 	wl := fakeworkloadapi.New(t)
 	defer wl.Stop()
@@ -190,9 +200,9 @@ func TestSpire_CheckTamper(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireControllerClient := NewSpireControllerAPIClient(*cfg)
+	spireControllerClient := GetControllerAPIClient(ctx)
+	spireControllerClient.SetConfig(*cfg)
 
-	ctx := context.Background()
 	logger := logging.FromContext(ctx)
 
 	var (
@@ -318,6 +328,8 @@ func TestSpire_CheckTamper(t *testing.T) {
 }
 
 func TestSpire_TaskRunResultsSign(t *testing.T) {
+	ctx, _ := ttesting.SetupDefaultContext(t)
+
 	ca := test.NewCA(t, td)
 
 	wl := fakeworkloadapi.New(t)
@@ -328,8 +340,10 @@ func TestSpire_TaskRunResultsSign(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireEntryPointerClient := NewSpireEntrypointerAPIClient(*cfg)
-	spireControllerClient := NewSpireControllerAPIClient(*cfg)
+	spireEntryPointerClient := GetEntrypointerAPIClient(ctx)
+	spireControllerClient := GetControllerAPIClient(ctx)
+	spireEntryPointerClient.SetConfig(*cfg)
+	spireControllerClient.SetConfig(*cfg)
 
 	var (
 		cc ControllerAPIClient   = spireControllerClient
@@ -424,6 +438,8 @@ func TestSpire_TaskRunResultsSign(t *testing.T) {
 
 // Task result sign, modify signature/content and verify
 func TestSpire_TaskRunResultsSignTamper(t *testing.T) {
+	ctx, _ := ttesting.SetupDefaultContext(t)
+
 	ca := test.NewCA(t, td)
 
 	wl := fakeworkloadapi.New(t)
@@ -434,8 +450,10 @@ func TestSpire_TaskRunResultsSignTamper(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireEntryPointerClient := NewSpireEntrypointerAPIClient(*cfg)
-	spireControllerClient := NewSpireControllerAPIClient(*cfg)
+	spireEntryPointerClient := GetEntrypointerAPIClient(ctx)
+	spireControllerClient := GetControllerAPIClient(ctx)
+	spireEntryPointerClient.SetConfig(*cfg)
+	spireControllerClient.SetConfig(*cfg)
 
 	var (
 		cc ControllerAPIClient   = spireControllerClient

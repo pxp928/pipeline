@@ -26,6 +26,7 @@ package spire
 
 import (
 	"context"
+	"time"
 
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	spireconfig "github.com/tektoncd/pipeline/pkg/spire/config"
@@ -59,7 +60,7 @@ type ControllerAPIClient interface {
 	AppendStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun) error
 	CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool
 	Close() error
-	CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error
+	CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl time.Duration) error
 	DeleteEntry(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod) error
 	VerifyStatusInternalAnnotation(ctx context.Context, tr *v1beta1.TaskRun, logger *zap.SugaredLogger) error
 	VerifyTaskRunResults(ctx context.Context, prs []v1beta1.PipelineResourceResult, tr *v1beta1.TaskRun) error

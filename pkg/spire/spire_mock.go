@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
@@ -130,7 +131,7 @@ func (sc *MockClient) CheckSpireVerifiedFlag(tr *v1beta1.TaskRun) bool {
 }
 
 // CreateEntries adds entries to the dictionary of entries that mock the SPIRE server datastore
-func (sc *MockClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
+func (sc *MockClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl time.Duration) error {
 	id := fmt.Sprintf("/ns/%v/taskrun/%v", tr.Namespace, tr.Name)
 	if sc.Entries == nil {
 		sc.Entries = map[string]bool{}

@@ -208,10 +208,12 @@ func getTrustBundle(ctx context.Context, client *workloadapi.Client) (*x509.Cert
 	}
 	if len(x509Bundle) > 0 {
 		trustPool := x509.NewCertPool()
-		for _, c := range x509Bundle[0].X509Authorities() {
-			trustPool.AddCert(c)
+		for _, bundle := range x509Bundle {
+			for _, c := range bundle.X509Authorities() {
+				trustPool.AddCert(c)
+			}
+			return trustPool, nil
 		}
-		return trustPool, nil
 	}
 	return nil, errors.Wrap(err, "trust domain bundle empty")
 }

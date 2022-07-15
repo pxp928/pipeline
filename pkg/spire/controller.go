@@ -56,7 +56,7 @@ func GetControllerAPIClient(ctx context.Context) ControllerAPIClient {
 }
 
 func withControllerClient(ctx context.Context, cfg *rest.Config) context.Context {
-	return context.WithValue(ctx, controllerKey{}, &spireEntrypointerAPIClient{})
+	return context.WithValue(ctx, controllerKey{}, &spireControllerAPIClient{})
 }
 
 type spireControllerAPIClient struct {
@@ -182,7 +182,7 @@ func (sc *spireControllerAPIClient) workloadEntry(tr *v1beta1.TaskRun, pod *core
 }
 
 // ttl is the TTL for the SPIRE entry in seconds, not the SVID TTL
-func (sc *spireControllerAPIClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl int) error {
+func (sc *spireControllerAPIClient) CreateEntries(ctx context.Context, tr *v1beta1.TaskRun, pod *corev1.Pod, ttl time.Duration) error {
 	err := sc.setupClient(ctx)
 	if err != nil {
 		return err
