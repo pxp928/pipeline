@@ -116,6 +116,7 @@ func (sc *spireControllerAPIClient) dial(ctx context.Context) error {
 	return nil
 }
 
+// SetConfig sets the spire configuration for ControllerAPIClient
 func (sc *spireControllerAPIClient) SetConfig(c spireconfig.SpireConfig) {
 	sc.config = &c
 }

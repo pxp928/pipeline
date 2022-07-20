@@ -92,6 +92,7 @@ func (w *spireEntrypointerAPIClient) getWorkloadSVID(ctx context.Context) (*x509
 	return nil, errors.Wrap(err, "requested SVID failed to get fetched and timed out")
 }
 
+// SetConfig sets the spire configuration for EntrypointerAPIClient
 func (w *spireEntrypointerAPIClient) SetConfig(c spireconfig.SpireConfig) {
 	w.config = &c
 }
