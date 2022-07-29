@@ -26,7 +26,6 @@ import (
 	spireconfig "github.com/tektoncd/pipeline/pkg/spire/config"
 	"k8s.io/client-go/rest"
 	"knative.dev/pkg/injection"
-	"knative.dev/pkg/logging"
 )
 
 func init() {
@@ -37,13 +36,17 @@ func init() {
 type entrypointerKey struct{}
 
 // GetEntrypointerAPIClient extracts the EntrypointerAPIClient from the context.
-func GetEntrypointerAPIClient(ctx context.Context) EntrypointerAPIClient {
-	untyped := ctx.Value(entrypointerKey{})
-	if untyped == nil {
-		logging.FromContext(ctx).Errorf("Unable to fetch client from context.")
-		return nil
+func GetEntrypointerAPIClient(c *spireconfig.SpireConfig) EntrypointerAPIClient {
+	return &spireEntrypointerAPIClient{
+		config: c,
 	}
-	return untyped.(*spireEntrypointerAPIClient)
+
+	// untyped := ctx.Value(entrypointerKey{})
+	// if untyped == nil {
+	// 	logging.FromContext(ctx).Errorf("Unable to fetch client from context.")
+	// 	return nil
+	// }
+	// return untyped.(*spireEntrypointerAPIClient)
 }
 
 func withEntrypointerClient(ctx context.Context, cfg *rest.Config) context.Context {

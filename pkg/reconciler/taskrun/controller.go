@@ -55,7 +55,7 @@ func NewController(opts *pipeline.Options, clock clock.PassiveClock) func(contex
 		resourceInformer := resourceinformer.Get(ctx)
 		limitrangeInformer := limitrangeinformer.Get(ctx)
 		resolutionInformer := resolutioninformer.Get(ctx)
-		spireControllerAPI := spire.GetControllerAPIClient(ctx)
+		spireControllerAPI := spire.GetControllerAPIClient(&opts.SpireConfig)
 		configStore := config.NewStore(logger.Named("config-store"), taskrunmetrics.MetricsOnStore(logger))
 		configStore.WatchConfigs(cmw)
 

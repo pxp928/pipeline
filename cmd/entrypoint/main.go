@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -55,7 +54,7 @@ var (
 		" Set to \"stopAndFail\" to declare a failure with a step error and stop executing the rest of the steps.")
 	stepMetadataDir = flag.String("step_metadata_dir", "", "If specified, create directory to store the step metadata e.g. /tekton/steps/<step-name>/")
 	enableSpire     = flag.Bool("enable_spire", false, "If specified by configmap, this enables spire signing and verification")
-	socketPath      = flag.String("spire_socket_path", "/spiffe-workload-api/spire-agent.sock", "Experimental: The SPIRE agent socket for SPIFFE workload API.")
+	socketPath      = flag.String("spire_socket_path", "unix:///spiffe-workload-api/spire-agent.sock", "Experimental: The SPIRE agent socket for SPIFFE workload API.")
 )
 
 const (
@@ -138,11 +137,11 @@ func main() {
 
 	var spireWorkloadAPI spire.EntrypointerAPIClient
 	if enableSpire != nil && *enableSpire && socketPath != nil && *socketPath != "" {
-		ctx := context.Background()
+		//ctx := context.Background()
 		spireConfig := config.SpireConfig{
-			SocketPath: "unix://" + *socketPath,
+			SocketPath: *socketPath,
 		}
-		spireWorkloadAPI = spire.GetEntrypointerAPIClient(ctx)
+		spireWorkloadAPI = spire.GetEntrypointerAPIClient(&spireConfig)
 		spireWorkloadAPI.SetConfig(spireConfig)
 	}
 

@@ -57,7 +57,7 @@ func TestSpire_TaskRunSign(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireControllerClient := GetControllerAPIClient(ctx)
+	spireControllerClient := GetControllerAPIClient(cfg)
 	spireControllerClient.SetConfig(*cfg)
 
 	logger := logging.FromContext(ctx)
@@ -83,7 +83,7 @@ func TestSpire_TaskRunSign(t *testing.T) {
 }
 
 func TestSpire_CheckSpireVerifiedFlag(t *testing.T) {
-	ctx, _ := ttesting.SetupDefaultContext(t)
+	//ctx, _ := ttesting.SetupDefaultContext(t)
 
 	ca := test.NewCA(t, td)
 	wl := fakeworkloadapi.New(t)
@@ -100,7 +100,7 @@ func TestSpire_CheckSpireVerifiedFlag(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireControllerClient := GetControllerAPIClient(ctx)
+	spireControllerClient := GetControllerAPIClient(cfg)
 	spireControllerClient.SetConfig(*cfg)
 
 	var (
@@ -143,7 +143,7 @@ func TestSpire_CheckHashSimilarities(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireControllerClient := GetControllerAPIClient(ctx)
+	spireControllerClient := GetControllerAPIClient(cfg)
 	spireControllerClient.SetConfig(*cfg)
 
 	var (
@@ -200,7 +200,7 @@ func TestSpire_CheckTamper(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireControllerClient := GetControllerAPIClient(ctx)
+	spireControllerClient := GetControllerAPIClient(cfg)
 	spireControllerClient.SetConfig(*cfg)
 
 	logger := logging.FromContext(ctx)
@@ -344,7 +344,7 @@ func TestSpire_CheckTamper(t *testing.T) {
 }
 
 func TestSpire_TaskRunResultsSign(t *testing.T) {
-	ctx, _ := ttesting.SetupDefaultContext(t)
+	//ctx, _ := ttesting.SetupDefaultContext(t)
 
 	ca := test.NewCA(t, td)
 
@@ -356,8 +356,8 @@ func TestSpire_TaskRunResultsSign(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireEntryPointerClient := GetEntrypointerAPIClient(ctx)
-	spireControllerClient := GetControllerAPIClient(ctx)
+	spireEntryPointerClient := GetEntrypointerAPIClient(cfg)
+	spireControllerClient := GetControllerAPIClient(cfg)
 	spireEntryPointerClient.SetConfig(*cfg)
 	spireControllerClient.SetConfig(*cfg)
 
@@ -454,7 +454,7 @@ func TestSpire_TaskRunResultsSign(t *testing.T) {
 
 // Task result sign, modify signature/content and verify
 func TestSpire_TaskRunResultsSignTamper(t *testing.T) {
-	ctx, _ := ttesting.SetupDefaultContext(t)
+	//ctx, _ := ttesting.SetupDefaultContext(t)
 
 	ca := test.NewCA(t, td)
 
@@ -466,8 +466,8 @@ func TestSpire_TaskRunResultsSignTamper(t *testing.T) {
 	cfg := &config.SpireConfig{}
 	cfg.SocketPath = wl.Addr()
 	cfg.TrustDomain = trustDomain
-	spireEntryPointerClient := GetEntrypointerAPIClient(ctx)
-	spireControllerClient := GetControllerAPIClient(ctx)
+	spireEntryPointerClient := GetEntrypointerAPIClient(cfg)
+	spireControllerClient := GetControllerAPIClient(cfg)
 	spireEntryPointerClient.SetConfig(*cfg)
 	spireControllerClient.SetConfig(*cfg)
 

@@ -37,7 +37,7 @@ var (
 	images                 = flag.String("images", "", "List of images resources built by task in json format")
 	terminationMessagePath = flag.String("terminationMessagePath", "/tekton/termination", "Location of file containing termination message")
 	enableSpire            = flag.Bool("enable_spire", false, "If specified by configmap, this enables spire signing and verification")
-	socketPath             = flag.String("spire_socket_path", "/spiffe-workload-api/spire-agent.sock", "Experimental: The SPIRE agent socket for SPIFFE workload API.")
+	socketPath             = flag.String("spire_socket_path", "unix:///spiffe-workload-api/spire-agent.sock", "Experimental: The SPIRE agent socket for SPIFFE workload API.")
 )
 
 /* The input of this go program will be a JSON string with all the output PipelineResources of type
@@ -87,10 +87,10 @@ func main() {
 		namespace := corev1.NamespaceAll
 		ctx := injection.WithNamespaceScope(signals.NewContext(), namespace)
 		spireConfig := config.SpireConfig{
-			SocketPath: "unix://" + *socketPath,
+			SocketPath: *socketPath,
 		}
 
-		spireWorkloadAPI := spire.GetEntrypointerAPIClient(ctx)
+		spireWorkloadAPI := spire.GetEntrypointerAPIClient(&spireConfig)
 		spireWorkloadAPI.SetConfig(spireConfig)
 		signed, err := spireWorkloadAPI.Sign(ctx, output)
 		if err != nil {

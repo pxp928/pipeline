@@ -35,7 +35,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
 	"knative.dev/pkg/injection"
-	"knative.dev/pkg/logging"
 )
 
 func init() {
@@ -46,13 +45,19 @@ func init() {
 type controllerKey struct{}
 
 // GetControllerAPIClient extracts the ControllerAPIClient from the context.
-func GetControllerAPIClient(ctx context.Context) ControllerAPIClient {
-	untyped := ctx.Value(controllerKey{})
-	if untyped == nil {
-		logging.FromContext(ctx).Errorf("Unable to fetch client from context.")
-		return nil
+func GetControllerAPIClient(c *spireconfig.SpireConfig) ControllerAPIClient {
+	if c.MockSpire {
+		return &MockClient{}
 	}
-	return untyped.(*spireControllerAPIClient)
+	return &spireControllerAPIClient{
+		config: c,
+	}
+	// untyped := ctx.Value(controllerKey{})
+	// if untyped == nil {
+	// 	logging.FromContext(ctx).Errorf("Unable to fetch client from context.")
+	// 	return nil
+	// }
+	// return untyped.(*spireControllerAPIClient)
 }
 
 func withControllerClient(ctx context.Context, cfg *rest.Config) context.Context {
