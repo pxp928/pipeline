@@ -98,6 +98,7 @@ spec:
 			t.Errorf("Error retrieving taskrun: %s", err)
 		}
 		spireShouldFailTaskRunResultsVerify(tr, t)
+		spireShouldPassSpireAnnotation(tr, t)
 	}
 
 	pipeline := parse.MustParsePipeline(t, fmt.Sprintf(`
@@ -134,6 +135,7 @@ spec:
 		}
 		for _, taskrunItem := range taskrunList.Items {
 			spireShouldFailTaskRunResultsVerify(&taskrunItem, t)
+			spireShouldPassSpireAnnotation(&taskrunItem, t)
 		}
 	}
 

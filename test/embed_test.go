@@ -94,6 +94,7 @@ func embeddedResourceTest(t *testing.T, spireEnabled bool) {
 			t.Errorf("Error retrieving taskrun: %s", err)
 		}
 		spireShouldPassTaskRunResultsVerify(tr, t)
+		spireShouldPassSpireAnnotation(tr, t)
 	}
 
 }

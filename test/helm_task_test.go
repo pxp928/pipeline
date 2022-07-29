@@ -129,6 +129,7 @@ func helmDeploytest(t *testing.T, spireEnabled bool) {
 		}
 		for _, taskrunItem := range taskrunList.Items {
 			spireShouldPassTaskRunResultsVerify(&taskrunItem, t)
+			spireShouldPassSpireAnnotation(&taskrunItem, t)
 		}
 	}
 

@@ -97,6 +97,7 @@ spec:
 			t.Errorf("Error retrieving taskrun: %s", err)
 		}
 		spireShouldPassTaskRunResultsVerify(tr, t)
+		spireShouldPassSpireAnnotation(tr, t)
 	}
 
 }
